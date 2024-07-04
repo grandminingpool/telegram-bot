@@ -1,0 +1,24 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:13
+    container_name: grandpool-telegram-bot-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: grandpool
+      POSTGRES_USER: grandpool
+      POSTGRES_PASSWORD: grandpool
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - grandpool-telegram-bot-network
+
+volumes:
+  postgres-data:
+
+networks:
+  grandpool-telegram-bot-network:
+    driver: bridge

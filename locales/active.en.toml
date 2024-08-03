@@ -1,17 +1,15 @@
-[BotDescription]
-description = "Hello!\nI'm a Grand Pool mining monitoring bot. I'll help you to track mining process, payouts, show pool statistics and notify you when your mining devices are idle."
+BotDescription = "Hello!\nI'm a Grand Pool mining monitoring bot. I'll help you to track mining process, payouts, show pool statistics and notify you when your mining devices are idle."
 
-[DefaultMessageText]
-description = "Select command from pool bot menu"
+DefaultMessageText = "Select command from pool bot menu"
 
-[AddWalletButton]
-description = "➕ Add wallet"
+AddWalletButton = "➕ Add wallet"
 
-[RemoveWalletButton]
-description = "➕ Remove wallet"
+RemoveWalletButton = "➕ Remove wallet"
 
-[BackButton]
-description = "⬅️ Back"
+BackButton = "⬅️ Back"
 
-[SelectBlockchain]
-description = "Select blockchain"
+SelectBlockchain = "Select blockchain"
+
+UserHasNoWallets = "You don't have wallets to track mining payments or blocks"
+
+EnterWallet = "Enter a wallet.\n\nExample:\n{{.ExampleWallet}}"

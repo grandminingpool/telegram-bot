@@ -7,14 +7,20 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/grandminingpool/telegram-bot/internal/bot/services"
 	"github.com/grandminingpool/telegram-bot/internal/common/languages"
+	"github.com/grandminingpool/telegram-bot/internal/common/types"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
-const USER_CTX_KEY = "botUser"
+const USER_CTX_KEY types.CtxKey = "botUser"
 
 type UserSettings struct {
 	PayoutsNotify bool
 	BlockNotify   bool
+}
+
+type UserAction struct {
+	Action  services.UserAction
+	Payload *string
 }
 
 type User struct {
@@ -22,11 +28,13 @@ type User struct {
 	Lang      string
 	Localizer *i18n.Localizer
 	Settings  UserSettings
+	Action    *UserAction
 }
 
 type UserMiddleware struct {
-	userService *services.UserService
-	languages   *languages.Languages
+	userService       *services.UserService
+	userActionService *services.UserActionService
+	languages         *languages.Languages
 }
 
 func (m *UserMiddleware) Middleware(next bot.HandlerFunc) bot.HandlerFunc {
@@ -34,7 +42,12 @@ func (m *UserMiddleware) Middleware(next bot.HandlerFunc) bot.HandlerFunc {
 		if update.Message != nil {
 			userSetting, err := m.userService.InitSettings(ctx, update.Message.From)
 			if err != nil {
+				// todo: write error to log
+			}
 
+			userAction, err := m.userActionService.Get(ctx, userSetting.ID)
+			if err != nil {
+				// todo: write error to log
 			}
 
 			userLocalizer := m.languages.GetLocalizer(userSetting.Lang)
@@ -47,6 +60,13 @@ func (m *UserMiddleware) Middleware(next bot.HandlerFunc) bot.HandlerFunc {
 					PayoutsNotify: userSetting.PayoutsNotify,
 					BlockNotify:   userSetting.BlockNotify,
 				},
+			}
+
+			if userAction != nil {
+				user.Action = &UserAction{
+					Action:  userAction.Action,
+					Payload: userAction.Payload,
+				}
 			}
 
 			newCtx := context.WithValue(ctx, USER_CTX_KEY, user)

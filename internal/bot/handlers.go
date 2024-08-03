@@ -7,4 +7,5 @@ import (
 
 func RegisterHandlers(b *bot.Bot) {
 	b.RegisterHandler(bot.HandlerTypeMessageText, string(constants.StartCommand), bot.MatchTypeExact, nil)
+	//b.RegisterHandlerMatchFunc()
 }

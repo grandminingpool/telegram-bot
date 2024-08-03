@@ -17,19 +17,21 @@ type PoolAPIDB struct {
 }
 
 type BlockchainDB struct {
-	Coin       string `db:"coin"`
-	Name       string `db:"name"`
-	Ticker     string `db:"ticker"`
-	AtomicUnit uint16 `db:"atomic_unit"`
+	Coin          string `db:"coin"`
+	Name          string `db:"name"`
+	Ticker        string `db:"ticker"`
+	AtomicUnit    uint16 `db:"atomic_unit"`
+	ExampleWallet string `db:"example_wallet"`
 	PoolAPIDB
 }
 
 type BlockchainInfo struct {
-	ID         int16
-	Coin       string
-	Name       string
-	Ticker     string
-	AtomicUnit uint16
+	ID            int16
+	Coin          string
+	Name          string
+	Ticker        string
+	AtomicUnit    uint16
+	ExampleWallet string
 }
 
 type Blockchain struct {
@@ -77,10 +79,11 @@ func (s *Service) Start(ctx context.Context, certsPath string) error {
 
 		s.blockchains[b.Coin] = Blockchain{
 			info: BlockchainInfo{
-				Coin:       b.Coin,
-				Name:       b.Name,
-				Ticker:     b.Ticker,
-				AtomicUnit: b.AtomicUnit,
+				Coin:          b.Coin,
+				Name:          b.Name,
+				Ticker:        b.Ticker,
+				AtomicUnit:    b.AtomicUnit,
+				ExampleWallet: b.ExampleWallet,
 			},
 			conn: conn,
 		}

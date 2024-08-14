@@ -1,15 +1,101 @@
-BotDescription = "Hello!\nI'm a Grand Pool mining monitoring bot. I'll help you to track mining process, payouts, show pool statistics and notify you when your mining devices are idle."
+Language = "🇬🇧 English"
 
-DefaultMessageText = "Select command from pool bot menu"
+BotDescription = "Hello!\n\nI'm a Grand Pool mining monitoring bot. I'll help you to track mining process, payouts, show pool statistics and notify you when your mining devices are idle."
+
+DefaultMessage = "Select command from pool bot menu"
+
+FAQMessage = "**How to start?**\nAdd a new wallet that you are using for mining on any Grand Pool ({{.PoolURL}}) via \"Add wallet\" menu. After that you will be able to check your balance statistics in \"Wallets\" and detailed workers statistics in \"Workers\".\n\n**Notifications**\nBot will send you a notification in the following cases:\n1. One of your workers is idle for ~{{.CheckWorkersInterval}} minutes;\n2. A new payout received from the pool;\n3. Your workers found a new block.\n\nSomething works wrong or you have any questions? Feel free to message us! @{{.SupportBotUsername}}"
+
+ReportBugMessage = "Tell us, what's happend?"
 
 AddWalletButton = "➕ Add wallet"
 
 RemoveWalletButton = "➕ Remove wallet"
 
+WalletsButton = "💰 Wallets"
+
+WorkersButton = "🔨 Workers"
+
+PoolStatsButton = "📈 Pool statistics"
+
+SettingsButton = "⚙️ Settings"
+
+SettingsEnablePayoutNotifyButton = "🔔 Enable payout notifications"
+
+SettingsDisablePayoutNotifyButton = "🔕 Disable payout notifications"
+
+SettingsEnableBlockNotifyButton = "🔔 Enable block notifications"
+
+SettingsDisableBlockNotifyButton = "🔕 Disable block notifications"
+
+PayoutNotificationsEnabled = "Payout notifications enabled.\n\nYou will receive notifications about payouts once they have been sent from the pool."
+
+PayoutNotificationsDisabled = "Payout notifications disabled"
+
+SettingsLanguageButton = "🌍 Language"
+
 BackButton = "⬅️ Back"
 
 SelectBlockchain = "Select blockchain"
 
-UserHasNoWallets = "You don't have wallets to track mining payments or blocks"
+SelectWallet = "Select a wallet"
+
+ChooseSetting = "Choose a setting"
+
+ChooseLanguage = "Choose your language"
+
+ReturningToMenu = "Returning to the menu"
+
+ReturningToSettingsMenu = "Returning to the settings menu"
+
+UserHasNoWallets = "You haven't added any wallets yet 😟\n\nAdd at least one wallet and I'll be able to show your balance and workers statistics."
+
+UserHasNoActiveWorkers = "No active workers"
 
 EnterWallet = "Enter a wallet.\n\nExample:\n{{.ExampleWallet}}"
+
+InvalidWallet = "Wrong wallet format. Try one more time."
+
+ExceededWalletsLimit = "The limit on the count of wallets has been exceeded"
+
+WalletAlreadyAdded = "You've already added this wallet"
+
+WalletAdded = "Wallet have been successfully added 🎉\n\nNow you can take into your balance and workers statistics. Also I'll notify you, if some worker is offline more than {{.CheckWorkersInterval}} minutes."
+
+WalletRemoved = "Wallet have been deleted successfully"
+
+WalletBalance = "Wallet: **{{.Wallet}}**\nPool: **{{.PoolBlockchainName}}**\n\nBalance: **{{.Balance}} {{.Ticker}}**."
+
+WalletLeftForPayment = "Left for payment: {{.Balance}} / {{.MinPayout}} {{.Ticker}}."
+
+WorkerInfo = "Wallet: **{{.Wallet}}**\nPool: **{{.PoolBlockchainName}}**\nRegion: {{.Region}}\n\nWorker: **{{.Worker}}**\nSolo: **{{.Solo}}**\nHashrate: {{.Hashrate}}\nUptime: {{.Uptime}}"
+
+PoolStatsMainInfo = "Pool: **{{.PoolBlockchainName}}**\nAlgos: **{{.Algos}}**\nPayout mode: **{{.PayoutMode}}**\nSupport solo mining: **{{.Solo}}**"
+
+PoolStatsFeeInfo = "Pool fee: **{{.Fee}}%**"
+
+PoolStatsSoloFeeInfo = "Solo fee: **{{.Fee}}%**"
+
+PoolStatsMiningInfoCaption = "**Mining statistics**"
+
+PoolStatsSoloMiningInfoCaption = "**Solo mining statistics**"
+
+PoolStatsMiningInfo = "Miners count: {{.MinersCount}}\nTotal hashrate: {{.TotalHashrate}}\nAverage hashrate: {{.AvgHashrate}}"
+
+UserFeedbackSent = "Thank you for your feedback!\nI've sent your message to developers. They'll look into it 🙏🏻\n\nNeed real human help? Feel free to message us! @{{.SupportBotUsername}}"
+
+Yes = "Yes"
+
+No = "No"
+
+[Day]
+one = "day"
+other = "days"
+
+[Hour]
+one = "hour"
+other = "hours"
+
+[Minute]
+one = "minute"
+other = "minutes"

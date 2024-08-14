@@ -15,7 +15,7 @@ import (
 	"github.com/grandminingpool/telegram-bot/internal/blockchains"
 	poolBot "github.com/grandminingpool/telegram-bot/internal/bot"
 	"github.com/grandminingpool/telegram-bot/internal/bot/handlers"
-	botKeyboards "github.com/grandminingpool/telegram-bot/internal/bot/keyboards"
+	"github.com/grandminingpool/telegram-bot/internal/bot/services"
 	"github.com/grandminingpool/telegram-bot/internal/common/flags"
 	"github.com/grandminingpool/telegram-bot/internal/common/languages"
 	"github.com/grandminingpool/telegram-bot/internal/common/logger"
@@ -69,21 +69,50 @@ func main() {
 		zap.L().Fatal("failed to start blockchains service", zap.Error(err))
 	}
 
+	//	Init bot services
+	userService := services.NewUserService(pgConn)
+	userActionService := services.NewUserActionService(pgConn)
+	userWalletService := services.NewUserWalletService(pgConn, blockchainsService)
+	feedbackService := services.NewFeedbackService(pgConn)
+
 	//	Init bot config
 	botConf, err := botConfig.New(flagsConf.ConfigsPath, validate)
 	if err != nil {
 		zap.L().Fatal("failed to load bot config", zap.Error(err))
 	}
 
-	//	Create
-	startKeyboard := &botKeyboards.StartKeyboard{}
-	defaultHandler := handlers.NewDefaultHandler(languages, startKeyboard)
-	b, err := poolBot.CreateBot(defaultHandler, botConf)
+	//	Create bot
+	defaultHandler := handlers.NewDefaultHandler(languages)
+	botOptions := poolBot.CreateBotOptions(
+		flagsConf.Mode,
+		blockchainsService,
+		userService,
+		userActionService,
+		userWalletService,
+		languages,
+		defaultHandler,
+		botConf,
+	)
+	b, err := poolBot.CreateBot(botOptions, botConf.BotToken)
 	if err != nil {
 		zap.L().Fatal("failed to create bot", zap.Error(err))
 	}
 
-	poolBot.SetBotDescription(ctx, b, languages.GetLocalizers())
+	poolBotHandlerMatcher := poolBot.NewHandlerMatcher(ctx, userActionService)
+	poolBot.RegisterHandlers(
+		b,
+		poolBotHandlerMatcher,
+		defaultHandler,
+		userActionService,
+		userWalletService,
+		feedbackService,
+		blockchainsService,
+		botConf,
+	)
+
+	if err := poolBot.SetBotDescription(ctx, b, languages.GetLocalizers()); err != nil {
+		zap.L().Warn("failed to set bot description", zap.Error(err))
+	}
 
 	//	Subscribe to system signals
 	signalChan := make(chan os.Signal, 1)

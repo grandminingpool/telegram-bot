@@ -13,6 +13,7 @@ type UserAction string
 
 const (
 	UserAddWalletAction UserAction = "add_wallet"
+	ReportBugAction     UserAction = "report_bug"
 )
 
 func (ua UserAction) Scan(val any) error {
@@ -21,6 +22,8 @@ func (ua UserAction) Scan(val any) error {
 		switch v {
 		case string(UserAddWalletAction):
 			ua = UserAddWalletAction
+		case string(ReportBugAction):
+			ua = ReportBugAction
 		default:
 			return fmt.Errorf("invalid user action value: %s", v)
 		}
@@ -75,4 +78,10 @@ func (a *UserActionService) Clear(ctx context.Context, userID int64) error {
 	}
 
 	return nil
+}
+
+func NewUserActionService(pgConn *sqlx.DB) *UserActionService {
+	return &UserActionService{
+		pgConn: pgConn,
+	}
 }

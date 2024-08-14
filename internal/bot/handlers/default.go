@@ -13,36 +13,31 @@ import (
 )
 
 type DefaultHandler struct {
-	languages     *languages.Languages
-	startKeyboard *botKeyboards.StartKeyboard
+	languages *languages.Languages
 }
 
-func (h *DefaultHandler) Handler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	user, ok := ctx.Value(middlewares.USER_CTX_KEY).(*middlewares.User)
-	if ok {
-		b.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID: update.Message.Chat.ID,
-			Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
-				MessageID: "DefaultMessageText",
-				TemplateData: map[string]string{
-					"Command": string(constants.StartCommand),
-				},
-			}),
-			ReplyMarkup: botKeyboards.CreateStartReplyKeyboard(b, h.startKeyboard, user.Localizer),
-		})
-
-		b.SetChatMenuButton(ctx, &bot.SetChatMenuButtonParams{
-			ChatID: update.Message.Chat.ID,
-			MenuButton: models.MenuButtonCommands{
-				Type: models.MenuButtonTypeCommands,
+func (h *DefaultHandler) Handler(ctx context.Context, user *middlewares.User, startKeyboard *botKeyboards.StartKeyboard, b *bot.Bot, update *models.Update) {
+	b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID: update.Message.Chat.ID,
+		Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: "DefaultMessage",
+			TemplateData: map[string]string{
+				"Command": string(constants.StartCommand),
 			},
-		})
-	}
+		}),
+		ReplyMarkup: botKeyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
+	})
+
+	b.SetChatMenuButton(ctx, &bot.SetChatMenuButtonParams{
+		ChatID: update.Message.Chat.ID,
+		MenuButton: models.MenuButtonCommands{
+			Type: models.MenuButtonTypeCommands,
+		},
+	})
 }
 
-func NewDefaultHandler(languages *languages.Languages, startKeyboard *botKeyboards.StartKeyboard) *DefaultHandler {
+func NewDefaultHandler(languages *languages.Languages) *DefaultHandler {
 	return &DefaultHandler{
-		languages:     languages,
-		startKeyboard: startKeyboard,
+		languages: languages,
 	}
 }

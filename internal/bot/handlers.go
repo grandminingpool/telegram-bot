@@ -32,7 +32,7 @@ func (m *HandlerMatcher) MatchUserAction(action services.UserAction) bot.MatchFu
 				)
 			}
 
-			return userAction != nil && userAction.Action == services.UserAddWalletAction
+			return userAction != nil && userAction.Action == action
 		}
 
 		return false

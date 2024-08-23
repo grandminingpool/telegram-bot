@@ -12,7 +12,7 @@ import (
 
 type FAQHandler struct {
 	poolURL              string
-	checkWorkersInterval int8
+	checkWorkersInterval int
 	supportBotUsername   string
 }
 
@@ -30,7 +30,7 @@ func (h *FAQHandler) Handler(ctx context.Context, user *middlewares.User, b *bot
 	})
 }
 
-func NewFAQHandler(poolURL string, checkWorkersInterval int8, supportBotUsername string) *FAQHandler {
+func NewFAQHandler(poolURL string, checkWorkersInterval int, supportBotUsername string) *FAQHandler {
 	return &FAQHandler{
 		poolURL:              poolURL,
 		checkWorkersInterval: checkWorkersInterval,

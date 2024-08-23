@@ -100,14 +100,20 @@ func (k *StartKeyboard) ShowWallets(ctx context.Context, user *middlewares.User,
 	} else {
 		var msgBuf bytes.Buffer
 		for _, wallet := range wallets {
+			msgBuf.WriteString(user.Localizer.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: "WalletInfo",
+				TemplateData: map[string]string{
+					"Wallet":             wallet.Wallet,
+					"PoolBlockchainName": wallet.Pool.Blockchain.Name,
+				},
+			}))
+			msgBuf.WriteString("\n\n")
 			balanceText := formatUtils.WalletBalance(wallet.Balance, wallet.Pool.Blockchain.AtomicUnit)
 			msgBuf.WriteString(user.Localizer.MustLocalize(&i18n.LocalizeConfig{
 				MessageID: "WalletBalance",
 				TemplateData: map[string]string{
-					"Wallet":             wallet.Wallet,
-					"PoolBlockchainName": wallet.Pool.Blockchain.Name,
-					"Balance":            balanceText,
-					"Ticker":             wallet.Pool.Blockchain.Ticker,
+					"Balance": balanceText,
+					"Ticker":  wallet.Pool.Blockchain.Ticker,
 				},
 			}))
 
@@ -152,22 +158,33 @@ func (k *StartKeyboard) ShowWorkers(ctx context.Context, user *middlewares.User,
 			}),
 		})
 	} else {
+		var msgBuf bytes.Buffer
 		for _, worker := range workers {
+			msgBuf.WriteString(user.Localizer.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: "WalletInfo",
+				TemplateData: map[string]string{
+					"Wallet":             worker.Wallet,
+					"PoolBlockchainName": worker.Pool.Blockchain.Name,
+				},
+			}))
+			msgBuf.WriteString("\n\n")
+			msgBuf.WriteString(user.Localizer.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: "WorkerInfo",
+				TemplateData: map[string]string{
+					"Region":   worker.Region,
+					"Worker":   worker.Worker,
+					"Solo":     formatUtils.BoolText(worker.Solo, user.Localizer),
+					"Hashrate": formatUtils.Hashrate(worker.Hashrate),
+					"Uptime":   formatUtils.UptimeText(worker.ConnectedAt, user.Localizer),
+				},
+			}))
+
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
-				Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
-					MessageID: "WorkerInfo",
-					TemplateData: map[string]string{
-						"Wallet":             worker.Wallet,
-						"PoolBlockchainName": worker.Pool.Blockchain.Name,
-						"Region":             worker.Region,
-						"Worker":             worker.Worker,
-						"Solo":               formatUtils.BoolText(worker.Solo, user.Localizer),
-						"Hashrate":           formatUtils.Hashrate(worker.Hashrate),
-						"Uptime":             formatUtils.UptimeText(worker.ConnectedAt, user.Localizer),
-					},
-				}),
+				Text:   msgBuf.String(),
 			})
+
+			msgBuf.Reset()
 		}
 	}
 }
@@ -187,8 +204,8 @@ func (k *StartKeyboard) ShowSettings(ctx context.Context, user *middlewares.User
 		userService:       k.userService,
 		startKeyboard:     k,
 		languagesKeyboard: k.languagesKeyboard,
-		payoutNotify:      user.Settings.PayoutNotify,
-		blockNotify:       user.Settings.BlockNotify,
+		payoutsNotify:     user.Settings.PayoutsNotify,
+		blocksNotify:      user.Settings.BlocksNotify,
 	}
 
 	newCtx := context.WithValue(ctx, SETTINGS_KEYBOARD_CTX_KEY, userSettingsKeyboard)

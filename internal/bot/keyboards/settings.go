@@ -24,37 +24,37 @@ type SettingsKeyboard struct {
 	userService       *services.UserService
 	startKeyboard     *StartKeyboard
 	languagesKeyboard *LanguagesKeyboard
-	payoutNotify      bool
-	blockNotify       bool
+	payoutsNotify     bool
+	blocksNotify      bool
 }
 
-func (k *SettingsKeyboard) IsPayoutNotify() bool {
-	return k.payoutNotify
+func (k *SettingsKeyboard) IsPayoutsNotify() bool {
+	return k.payoutsNotify
 }
 
-func (k *SettingsKeyboard) IsBlockNotify() bool {
-	return k.blockNotify
+func (k *SettingsKeyboard) IsBlocksNotify() bool {
+	return k.blocksNotify
 }
 
-func (k *SettingsKeyboard) TogglePayoutNotify(ctx context.Context, user *middlewares.User, b *bot.Bot, update *models.Update) {
-	newPayoutNotify := !k.payoutNotify
+func (k *SettingsKeyboard) TogglePayoutsNotify(ctx context.Context, user *middlewares.User, b *bot.Bot, update *models.Update) {
+	newPayoutsNotify := !k.payoutsNotify
 
-	if err := k.userService.SetPayoutNotify(ctx, user.ID, newPayoutNotify); err != nil {
+	if err := k.userService.SetPayoutsNotify(ctx, user.ID, newPayoutsNotify); err != nil {
 		zap.L().Error("update user payout notify error",
 			zap.Int64("user_id", user.ID),
-			zap.Bool("payout_notify", newPayoutNotify),
+			zap.Bool("payouts_notify", newPayoutsNotify),
 		)
 
 		return
 	}
 
-	k.payoutNotify = newPayoutNotify
+	k.payoutsNotify = newPayoutsNotify
 
 	var msgID string
-	if newPayoutNotify {
-		msgID = "PayoutNotificationsEnabled"
+	if newPayoutsNotify {
+		msgID = "PayoutsNotificationsEnabled"
 	} else {
-		msgID = "PayoutNotificationsDisabled"
+		msgID = "PayoutsNotificationsDisabled"
 	}
 
 	b.SendMessage(ctx, &bot.SendMessageParams{
@@ -66,25 +66,25 @@ func (k *SettingsKeyboard) TogglePayoutNotify(ctx context.Context, user *middlew
 	})
 }
 
-func (k *SettingsKeyboard) ToggleBlockNotify(ctx context.Context, user *middlewares.User, b *bot.Bot, update *models.Update) {
-	newBlockNotify := !k.blockNotify
+func (k *SettingsKeyboard) ToggleBlocksNotify(ctx context.Context, user *middlewares.User, b *bot.Bot, update *models.Update) {
+	newBlocksNotify := !k.blocksNotify
 
-	if err := k.userService.SetBlockNotify(ctx, user.ID, newBlockNotify); err != nil {
-		zap.L().Error("update user block notify error",
+	if err := k.userService.SetBlocksNotify(ctx, user.ID, newBlocksNotify); err != nil {
+		zap.L().Error("update user blocks notify error",
 			zap.Int64("user_id", user.ID),
-			zap.Bool("block_notify", newBlockNotify),
+			zap.Bool("block_notify", newBlocksNotify),
 		)
 
 		return
 	}
 
-	k.blockNotify = newBlockNotify
+	k.blocksNotify = newBlocksNotify
 
 	var msgID string
-	if newBlockNotify {
-		msgID = "BlockNotificationsEnabled"
+	if newBlocksNotify {
+		msgID = "BlocksNotificationsEnabled"
 	} else {
-		msgID = "BlockNotificationsDisabled"
+		msgID = "BlocksNotificationsDisabled"
 	}
 
 	b.SendMessage(ctx, &bot.SendMessageParams{
@@ -117,27 +117,27 @@ func (k *SettingsKeyboard) Back(ctx context.Context, user *middlewares.User, b *
 }
 
 func CreateSettingsReplyKeyboard(b *bot.Bot, settingsKeyboard *SettingsKeyboard, localizer *i18n.Localizer) *reply.ReplyKeyboard {
-	var payoutNotifyMsgID, blockNotifyMsgID string
+	var payoutsNotifyMsgID, blocksNotifyMsgID string
 
-	if settingsKeyboard.IsPayoutNotify() {
-		payoutNotifyMsgID = "SettingsDisablePayoutNotifyButton"
+	if settingsKeyboard.IsPayoutsNotify() {
+		payoutsNotifyMsgID = "SettingsDisablePayoutsNotifyButton"
 	} else {
-		payoutNotifyMsgID = "SettingsEnablePayoutNotifyButton"
+		payoutsNotifyMsgID = "SettingsEnablePayoutsNotifyButton"
 	}
 
-	if settingsKeyboard.IsBlockNotify() {
-		blockNotifyMsgID = "SettingsEnablePayoutsNotifyButton"
+	if settingsKeyboard.IsBlocksNotify() {
+		blocksNotifyMsgID = "SettingsEnablePayoutsNotifyButton"
 	} else {
-		blockNotifyMsgID = "SettingsEnableBlockNotifyButton"
+		blocksNotifyMsgID = "SettingsEnableBlocksNotifyButton"
 	}
 
 	return reply.New(b, reply.IsSelective(), reply.WithPrefix(SETTINGS_KEYBOARD_PREFIX)).Row().
 		Button(localizer.MustLocalize(&i18n.LocalizeConfig{
-			MessageID: payoutNotifyMsgID,
-		}), b, bot.MatchTypeExact, middlewares.WithUserHandler(settingsKeyboard.TogglePayoutNotify)).
+			MessageID: payoutsNotifyMsgID,
+		}), b, bot.MatchTypeExact, middlewares.WithUserHandler(settingsKeyboard.TogglePayoutsNotify)).
 		Button(localizer.MustLocalize(&i18n.LocalizeConfig{
-			MessageID: blockNotifyMsgID,
-		}), b, bot.MatchTypeExact, middlewares.WithUserHandler(settingsKeyboard.ToggleBlockNotify)).Row().
+			MessageID: blocksNotifyMsgID,
+		}), b, bot.MatchTypeExact, middlewares.WithUserHandler(settingsKeyboard.ToggleBlocksNotify)).Row().
 		Button(localizer.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: "SettingsLanguageButton",
 		}), b, bot.MatchTypeExact, middlewares.WithUserHandler(settingsKeyboard.ShowLanguages)).Row().

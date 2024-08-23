@@ -43,7 +43,7 @@ func (h *PoolStatsHandler) OnBlockchainSelected(
 	ctx context.Context,
 	user *middlewares.User,
 	startKeyboard *botKeyboards.StartKeyboard,
-	blockchain *blockchains.BlockchainInfo,
+	blockchain blockchains.BlockchainInfo,
 	b *bot.Bot,
 	update *models.Update,
 ) {

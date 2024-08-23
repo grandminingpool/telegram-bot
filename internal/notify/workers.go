@@ -1,24 +1,25 @@
 package botNotify
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
+	"github.com/go-telegram/bot"
 	poolMinersProto "github.com/grandminingpool/pool-api-proto/generated/pool_miners"
 	botConfig "github.com/grandminingpool/telegram-bot/configs/bot"
 	"github.com/grandminingpool/telegram-bot/internal/blockchains"
+	"github.com/grandminingpool/telegram-bot/internal/common/languages"
+	formatUtils "github.com/grandminingpool/telegram-bot/internal/utils/format"
 	"github.com/hashicorp/go-set/v2"
 	"github.com/jmoiron/sqlx"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"go.uber.org/zap"
 )
 
 const REMOWED_WORKERS_TEMP_TABLE_NAME = "wallet_workers_to_be_removed"
-
-type Workers struct {
-	pgConn             *sqlx.DB
-	blockchainsService *blockchains.Service
-	config             *botConfig.NotifyConfig
-}
 
 type WorkerInfo struct {
 	worker      string
@@ -31,43 +32,49 @@ func (w WorkerInfo) Hash() string {
 	return w.worker
 }
 
-type PoolRequests struct {
+type PoolWorkersRequests struct {
 	client  poolMinersProto.PoolMinersServiceClient
 	wallets [][]string
 }
 
-type RemovalUserWorkerDB struct {
-	UserID int64  `json:"user_id"`
-	Wallet string `json:"wallet"`
-	Worker string `json:"worker"`
+type RemovalWorkerDB struct {
+	WalletID int64  `json:"wallet_id"`
+	Worker   string `json:"worker"`
 }
 
-type UserWorkerDB struct {
-	RemovalUserWorkerDB
+type WorkerDB struct {
+	RemovalWorkerDB
 	Region      string    `json:"region"`
 	Solo        bool      `json:"solo"`
 	ConnectedAt time.Time `json:"connected_at"`
 }
 
 type ChangedWorkersDB struct {
-	added   []UserWorkerDB
-	removed []RemovalUserWorkerDB
+	added   []WorkerDB
+	removed []RemovalWorkerDB
 }
 
 type UserInfo struct {
 	userID int64
 	chatID int64
+	lang   string
+}
+
+type WalletInfo struct {
+	id         int64
+	wallet     string
+	blockchain *blockchains.BlockchainInfo
 }
 
 type UserWalletWorkers struct {
-	UserInfo
-	workers *set.HashSet[*WorkerInfo, string]
+	userInfo *UserInfo
+	id       int64
+	workers  *set.HashSet[*WorkerInfo, string]
 }
 
 type UserChangedWorkers struct {
-	coin     string
-	active   []*WorkerInfo
-	inactive []*WorkerInfo
+	added   []*WorkerInfo
+	removed []*WorkerInfo
 }
 
 type PoolWorkers struct {
@@ -77,12 +84,33 @@ type PoolWorkers struct {
 	err      error
 }
 
+type ChangedUserWorker struct {
+	wallet *WalletInfo
+	worker *WorkerInfo
+}
+
+type ChangedUserWorkers struct {
+	userInfo *UserInfo
+	added    []ChangedUserWorker
+	removed  []ChangedUserWorker
+}
+
+type Workers struct {
+	pgConn             *sqlx.DB
+	blockchainsService *blockchains.Service
+	b                  *bot.Bot
+	languages          *languages.Languages
+	config             *botConfig.NotifyConfig
+}
+
 func (w *Workers) getWorkersMap(ctx context.Context) (map[string]map[string]*UserWalletWorkers, error) {
 	workersMap := make(map[string]map[string]*UserWalletWorkers)
-	rows, err := w.pgConn.QueryContext(ctx, `SELECT 
+	rows, err := w.pgConn.QueryContext(ctx, `SELECT
 		user_wallets.user_id,
 		users.chat_id,
-		user_wallets.blockchain_coin, 
+		users.lang,
+		user_wallets.blockchain_coin,
+		user_wallets.id,
 		user_wallets.wallet,
 		wallet_workers.worker,
 		wallet_workers.region,
@@ -90,63 +118,76 @@ func (w *Workers) getWorkersMap(ctx context.Context) (map[string]map[string]*Use
 		wallet_workers.connected_at
 	FROM wallet_workers
 	LEFT JOIN users ON users.id = wallet_workers.user_id
-	LEFT JOIN user_wallets ON user_wallets.wallet = wallet_workers.wallet`)
+	LEFT JOIN user_wallets ON user_wallets.id = wallet_workers.wallet_id`)
 	if err != nil {
-
+		return nil, fmt.Errorf("failed to query workers: %w", err)
 	}
 	set.New[string](10)
 	for rows.Next() {
 		var (
-			userID, chatID               int64
-			coin, wallet, worker, region string
-			solo                         bool
-			connectedAt                  time.Time
+			userID, chatID, walletID               int64
+			userLang, coin, wallet, worker, region string
+			solo                                   bool
+			connectedAt                            time.Time
 		)
 
-		if err := rows.Scan(&userID, &chatID, &coin, &wallet, &worker, &region, &solo, &connectedAt); err != nil {
-
+		if err := rows.Scan(
+			&userID,
+			&chatID,
+			&userLang,
+			&coin,
+			&walletID,
+			&wallet,
+			&worker,
+			&region,
+			&solo,
+			&connectedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan workers columns: %w", err)
 		}
 
-		coinWorkersMap, ok := workersMap[coin]
+		_, ok := workersMap[coin]
 		if !ok {
 			workersMap[coin] = make(map[string]*UserWalletWorkers)
+		}
+
+		workerInfo := &WorkerInfo{
+			worker,
+			region,
+			solo,
+			connectedAt,
+		}
+		coinWorkersWalletsMap, ok := workersMap[coin][wallet]
+		if !ok {
+			set.NewHashSet[*WorkerInfo, string](0)
+			workersMap[coin][wallet] = &UserWalletWorkers{
+				userInfo: &UserInfo{
+					userID: userID,
+					chatID: chatID,
+					lang:   userLang,
+				},
+				id:      walletID,
+				workers: set.HashSetFrom[*WorkerInfo, string]([]*WorkerInfo{workerInfo}),
+			}
 		} else {
-			workerInfo := &WorkerInfo{
-				worker,
-				region,
-				solo,
-				connectedAt,
-			}
-			coinWorkersWalletsMap, ok := coinWorkersMap[wallet]
-			if !ok {
-				set.NewHashSet[*WorkerInfo, string](0)
-				coinWorkersMap[wallet] = &UserWalletWorkers{
-					UserInfo: UserInfo{
-						userID,
-						chatID,
-					},
-					workers: set.HashSetFrom[*WorkerInfo, string]([]*WorkerInfo{workerInfo}),
-				}
-			} else {
-				coinWorkersWalletsMap.workers.Insert(workerInfo)
-			}
+			coinWorkersWalletsMap.workers.Insert(workerInfo)
 		}
 	}
 
 	return workersMap, nil
 }
 
-func (w *Workers) getPoolRequestsMap(workersMap map[string]map[string]*UserWalletWorkers) (map[string]*PoolRequests, int, error) {
-	poolRequestsMap := make(map[string]*PoolRequests)
+func (w *Workers) getPoolRequestsMap(workersMap map[string]map[string]*UserWalletWorkers) (map[string]*PoolWorkersRequests, int, error) {
+	poolRequestsMap := make(map[string]*PoolWorkersRequests)
 	requestsCount := 0
 	for coin, coinWorkersMap := range workersMap {
 		conn, err := w.blockchainsService.GetConnection(coin)
 		if err != nil {
-
+			return nil, 0, err
 		}
 
 		client := poolMinersProto.NewPoolMinersServiceClient(conn)
-		poolRequests := &PoolRequests{
+		poolRequests := &PoolWorkersRequests{
 			client:  client,
 			wallets: [][]string{},
 		}
@@ -155,7 +196,7 @@ func (w *Workers) getPoolRequestsMap(workersMap map[string]map[string]*UserWalle
 		requestsCount++
 		i := 0
 		for wallet := range coinWorkersMap {
-			if i > w.config.MaxWalletsInRequest {
+			if i > w.config.MaxWalletsInWorkersRequest {
 				groupNum++
 				requestsCount++
 				i = 0
@@ -194,7 +235,7 @@ func (w *Workers) getWorkers(
 			Addresses: wallets,
 		})
 		if err != nil {
-			result.err = fmt.Errorf("failed to get pool (coin: %w) workers for group: %d, error: %w", coin, groupNum, err)
+			result.err = fmt.Errorf("failed to get pool (coin: %s) workers for group: %d, error: %w", coin, groupNum, err)
 		} else {
 			result.workers = workers.Workers
 		}
@@ -203,35 +244,87 @@ func (w *Workers) getWorkers(
 	}
 }
 
-func (w *Workers) addWorkers(ctx context.Context, tx *sqlx.Tx, groupNum int, addedWorkers []UserWorkerDB, errCh chan<- error) {
+func (w *Workers) addWorkers(ctx context.Context, tx *sqlx.Tx, groupNum int, addedWorkers []WorkerDB, errCh chan<- error) {
 	select {
 	case <-ctx.Done():
 		return
 	default:
 		if _, err := tx.NamedExecContext(ctx, `INSERT INTO wallet_workers (
-		   user_id, 
-		   wallet, 
+		   wallet_id, 
 		   worker, 
 		   region, 
 		   solo, 
 		   connected_at
-	   ) VALUES (:user_id, :wallet, :worker, :region, :solo, :connected_at)`, addedWorkers); err != nil {
+	   ) VALUES (:wallet_id, :worker, :region, :solo, :connected_at)`, addedWorkers); err != nil {
 			errCh <- fmt.Errorf("failed to insert added workers batch (group num: %d, batch length: %d), error: %w", groupNum, len(addedWorkers), err)
 		}
 	}
 }
 
-func (w *Workers) removeWorkers(ctx context.Context, tx *sqlx.Tx, groupNum int, removedWorkers []RemovalUserWorkerDB, errCh chan<- error) {
+func (w *Workers) removeWorkers(ctx context.Context, tx *sqlx.Tx, groupNum int, removedWorkers []RemovalWorkerDB, errCh chan<- error) {
 	select {
 	case <-ctx.Done():
 		return
 	default:
 		if _, err := tx.NamedExecContext(ctx, fmt.Sprintf(`INSERT INTO %s (
-			user_id, 
-			wallet, 
+			wallet_id, 
 			worker
-		) VALUES (:user_id, :wallet, :worker)`, REMOWED_WORKERS_TEMP_TABLE_NAME), removedWorkers); err != nil {
+		) VALUES (:wallet_id, :worker)`, REMOWED_WORKERS_TEMP_TABLE_NAME), removedWorkers); err != nil {
 			errCh <- fmt.Errorf("failed to insert removed workers batch to temp table (group num: %d, batch length: %d), error: %w", groupNum, len(removedWorkers), err)
+		}
+	}
+}
+
+func (w *Workers) notifyUsers(
+	ctx context.Context,
+	changedUsersWorkers []*ChangedUserWorkers,
+	wg *sync.WaitGroup,
+) {
+	defer wg.Done()
+	select {
+	case <-ctx.Done():
+		return
+	default:
+		var msgBuf bytes.Buffer
+		for _, changedUserWorkers := range changedUsersWorkers {
+			userLocalizer := w.languages.GetLocalizer(changedUserWorkers.userInfo.lang)
+
+			for _, addedWorker := range changedUserWorkers.added {
+				msgBuf.WriteString(userLocalizer.MustLocalize(&i18n.LocalizeConfig{
+					MessageID: "WorkerActive",
+					TemplateData: map[string]string{
+						"Worker": addedWorker.worker.worker,
+					},
+				}))
+				msgBuf.WriteString("\n\n")
+				msgBuf.WriteString(userLocalizer.MustLocalize(&i18n.LocalizeConfig{
+					MessageID: "WorkerInfoShort",
+					TemplateData: map[string]string{
+						"Region":      addedWorker.worker.region,
+						"Solo":        formatUtils.BoolText(addedWorker.worker.solo, userLocalizer),
+						"ConnectedAt": addedWorker.worker.connectedAt.Format(time.Kitchen),
+					},
+				}))
+
+				w.b.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID: changedUserWorkers.userInfo.chatID,
+					Text:   msgBuf.String(),
+				})
+
+				msgBuf.Reset()
+			}
+
+			for _, removedWorker := range changedUserWorkers.removed {
+				w.b.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID: changedUserWorkers.userInfo.chatID,
+					Text: userLocalizer.MustLocalize(&i18n.LocalizeConfig{
+						MessageID: "WorkerInactive",
+						TemplateData: map[string]string{
+							"Worker": removedWorker.worker.worker,
+						},
+					}),
+				})
+			}
 		}
 	}
 }
@@ -240,17 +333,21 @@ func (w *Workers) Check(ctx context.Context) {
 	workersMap, err := w.getWorkersMap(ctx)
 	defer clear(workersMap)
 	if err != nil {
+		zap.L().Error("failed to create workers map", zap.Error(err))
 
+		return
 	}
 
 	poolRequestsMap, requestsCount, err := w.getPoolRequestsMap(workersMap)
 	defer clear(poolRequestsMap)
 	if err != nil {
+		zap.L().Error("failed to create pool requests map", zap.Error(err))
 
+		return
 	}
 
 	poolWorkersCh := make(chan PoolWorkers, requestsCount)
-	close(poolWorkersCh)
+	defer close(poolWorkersCh)
 	newCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -262,13 +359,31 @@ func (w *Workers) Check(ctx context.Context) {
 		}
 	}
 
-	changedWorkersMap := make(map[UserInfo]map[string]*UserChangedWorkers)
+	changedWorkersMap := make(map[UserInfo]map[WalletInfo]*UserChangedWorkers)
 	defer clear(changedWorkersMap)
 	for i := 0; i < requestsCount; i++ {
 		select {
+		case <-ctx.Done():
+			return
 		case poolWorkers := <-poolWorkersCh:
 			if poolWorkers.err != nil {
-				//return poolWorkers.err
+				zap.L().Error("get pool workers error",
+					zap.String("coin", poolWorkers.coin),
+					zap.Int("group_num", poolWorkers.groupNum),
+					zap.Error(poolWorkers.err),
+				)
+
+				return
+			}
+
+			blockchain, err := w.blockchainsService.GetInfo(poolWorkers.coin)
+			if err != nil {
+				zap.L().Error("get blockchain info for workers error",
+					zap.String("coin", poolWorkers.coin),
+					zap.Int("group_num", poolWorkers.groupNum),
+					zap.Error(err),
+				)
+
 				return
 			}
 
@@ -287,107 +402,191 @@ func (w *Workers) Check(ctx context.Context) {
 							})
 						}
 
-						userInfo := UserInfo{
-							userID: userWalletWorkers.userID,
-							chatID: userWalletWorkers.chatID,
+						walletInfo := WalletInfo{
+							id:         userWalletWorkers.id,
+							wallet:     wallet,
+							blockchain: blockchain,
 						}
 						userChangedWorkers := &UserChangedWorkers{
-							coin:     poolWorkers.coin,
-							active:   walletWorkersSet.Difference(userWalletWorkers.workers).Slice(),
-							inactive: userWalletWorkers.workers.Difference(walletWorkersSet).Slice(),
+							added:   walletWorkersSet.Difference(userWalletWorkers.workers).Slice(),
+							removed: userWalletWorkers.workers.Difference(walletWorkersSet).Slice(),
 						}
 
-						changedUserWorkersMap, ok := changedWorkersMap[userInfo]
+						changedUserWorkersMap, ok := changedWorkersMap[*userWalletWorkers.userInfo]
 						if ok {
-							changedUserWorkersMap[wallet] = userChangedWorkers
+							changedUserWorkersMap[walletInfo] = userChangedWorkers
 						} else {
-							changedWorkersMap[userInfo][wallet] = userChangedWorkers
+							changedWorkersMap[*userWalletWorkers.userInfo][walletInfo] = userChangedWorkers
 						}
 					}
 				}
 			}
 		default:
 		}
+	}
 
-		tx, err := w.pgConn.BeginTxx(ctx, nil)
-		if err != nil {
+	tx, err := w.pgConn.BeginTxx(ctx, nil)
+	if err != nil {
+		zap.L().Error("failed to create transaction to update workers in database", zap.Error(err))
 
-		}
+		return
+	}
 
-		if _, err := tx.ExecContext(ctx, fmt.Sprintf(`CREATE TEMP TABLE %s (
-			user_id BIGINT NOT NULL,
-			wallet TEXT NOT NULL,
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf(`CREATE TEMP TABLE %s (
+			wallet_id BIGINT NOT NULL,
 			worker TEXT NOT NULL,
-			PRIMARY KEY(user_id, wallet, worker)
+			PRIMARY KEY(wallet_id, worker)
 		)`, REMOWED_WORKERS_TEMP_TABLE_NAME)); err != nil {
-			tx.Rollback()
+		tx.Rollback()
+
+		zap.L().Error("failed to create temp table for removed workers",
+			zap.String("temp_table_name", REMOWED_WORKERS_TEMP_TABLE_NAME),
+			zap.Error(err),
+		)
+
+		return
+	}
+
+	changedWorkersGroups := []*ChangedWorkersDB{}
+	defer func() {
+		changedWorkersGroups = nil
+	}()
+	groupNum := 0
+	i := 0
+	j := 0
+
+	for _, changedUserWorkersMap := range changedWorkersMap {
+		if groupNum > w.config.MaxUsersDBChangesLimit {
+			groupNum++
+			i = 0
+			j = 0
 		}
 
-		changedWorkersGroups := []*ChangedWorkersDB{}
-		groupNum := 0
-		i := 0
-		j := 0
-
-		for user, changedUserWorkersMap := range changedWorkersMap {
-			if groupNum > w.config.MaxUsersChangesLimit {
-				groupNum++
-				i = 0
-				j = 0
-			}
-
-			for wallet, userChangedWorkers := range changedUserWorkersMap {
-				for _, workerInfo := range userChangedWorkers.active {
-					changedWorkersGroups[groupNum].added[i] = UserWorkerDB{
-						RemovalUserWorkerDB: RemovalUserWorkerDB{
-							UserID: user.userID,
-							Wallet: wallet,
-							Worker: workerInfo.worker,
-						},
-						Region:      workerInfo.region,
-						Solo:        workerInfo.solo,
-						ConnectedAt: workerInfo.connectedAt,
-					}
-
-					i++
+		for walletInfo, userChangedWorkers := range changedUserWorkersMap {
+			for _, workerInfo := range userChangedWorkers.added {
+				changedWorkersGroups[groupNum].added[i] = WorkerDB{
+					RemovalWorkerDB: RemovalWorkerDB{
+						WalletID: walletInfo.id,
+						Worker:   workerInfo.worker,
+					},
+					Region:      workerInfo.region,
+					Solo:        workerInfo.solo,
+					ConnectedAt: workerInfo.connectedAt,
 				}
 
-				for _, workerInfo := range userChangedWorkers.inactive {
-					changedWorkersGroups[groupNum].removed[j] = RemovalUserWorkerDB{
-						UserID: user.userID,
-						Wallet: wallet,
-						Worker: workerInfo.worker,
-					}
+				i++
+			}
 
-					j++
+			for _, workerInfo := range userChangedWorkers.removed {
+				changedWorkersGroups[groupNum].removed[j] = RemovalWorkerDB{
+					WalletID: walletInfo.id,
+					Worker:   workerInfo.worker,
 				}
+
+				j++
 			}
-		}
-
-		changedWorkersGroupsLen := len(changedWorkersGroups)
-		errCh := make(chan error, 2*changedWorkersGroupsLen)
-		defer close(errCh)
-		for groupNum, changedWorkers := range changedWorkersGroups {
-			go w.addWorkers(newCtx, tx, groupNum, changedWorkers.added, errCh)
-			go w.removeWorkers(newCtx, tx, groupNum, changedWorkers.removed, errCh)
-		}
-
-		for i := 0; i < changedWorkersGroupsLen; i++ {
-			select {
-			case err := <-errCh:
-				tx.Rollback()
-
-				return
-			}
-		}
-
-		if _, err := tx.ExecContext(ctx, fmt.Sprintf("DROP TABLE %s", REMOWED_WORKERS_TEMP_TABLE_NAME)); err != nil {
-			tx.Rollback()
-		}
-
-		tx.ExecContext(ctx, `DELETE FROM wallet_workers`)
-
-		if err := tx.Commit(); err != nil {
-
 		}
 	}
+
+	changedWorkersGroupsLen := len(changedWorkersGroups)
+	changeWorkersErrCh := make(chan error, 2*changedWorkersGroupsLen)
+	defer close(changeWorkersErrCh)
+	for groupNum, changedWorkers := range changedWorkersGroups {
+		go w.addWorkers(newCtx, tx, groupNum, changedWorkers.added, changeWorkersErrCh)
+		go w.removeWorkers(newCtx, tx, groupNum, changedWorkers.removed, changeWorkersErrCh)
+	}
+
+	for i := 0; i < changedWorkersGroupsLen; i++ {
+		select {
+		case <-ctx.Done():
+			tx.Rollback()
+
+			return
+		case err := <-changeWorkersErrCh:
+			tx.Rollback()
+
+			zap.L().Error("failed to change workers rows in database", zap.Error(err))
+
+			return
+		default:
+		}
+	}
+
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf(`DELETE FROM wallet_workers 
+			USING %s
+			WHERE wallet_workers.wallet_id = %s.wallet_id AND wallet_workers.worker = %s.worker`,
+		REMOWED_WORKERS_TEMP_TABLE_NAME,
+		REMOWED_WORKERS_TEMP_TABLE_NAME,
+		REMOWED_WORKERS_TEMP_TABLE_NAME,
+	)); err != nil {
+		tx.Rollback()
+
+		zap.L().Error("failed to delete removed workers rows from database", zap.Error(err))
+
+		return
+	}
+
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf("DROP TABLE %s", REMOWED_WORKERS_TEMP_TABLE_NAME)); err != nil {
+		tx.Rollback()
+
+		zap.L().Error("failed to drop temp table for removed workers",
+			zap.String("temp_table_name", REMOWED_WORKERS_TEMP_TABLE_NAME),
+			zap.Error(err),
+		)
+
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		zap.L().Error("failed to commit workers changes in database", zap.Error(err))
+
+		return
+	}
+
+	changedUsersWorkersGroups := [][]*ChangedUserWorkers{}
+	defer func() {
+		changedUsersWorkersGroups = nil
+	}()
+	groupNum = 0
+	i = 0
+
+	for userInfo, changedUserWorkersMap := range changedWorkersMap {
+		if groupNum > w.config.ParallelNotificationsCount {
+			groupNum++
+			i = 0
+		}
+
+		for walletInfo, userChangedWorkers := range changedUserWorkersMap {
+			changedUserWorkers := &ChangedUserWorkers{
+				userInfo: &userInfo,
+				added:    make([]ChangedUserWorker, 0, len(userChangedWorkers.added)),
+				removed:  make([]ChangedUserWorker, 0, len(userChangedWorkers.removed)),
+			}
+
+			for _, workerInfo := range userChangedWorkers.added {
+				changedUserWorkers.added = append(changedUserWorkers.added, ChangedUserWorker{
+					wallet: &walletInfo,
+					worker: workerInfo,
+				})
+			}
+
+			for _, workerInfo := range userChangedWorkers.removed {
+				changedUserWorkers.removed = append(changedUserWorkers.removed, ChangedUserWorker{
+					wallet: &walletInfo,
+					worker: workerInfo,
+				})
+			}
+
+			changedUsersWorkersGroups[groupNum][i] = changedUserWorkers
+			i++
+		}
+	}
+
+	wg := sync.WaitGroup{}
+	for _, changedUsersWorkers := range changedUsersWorkersGroups {
+		wg.Add(1)
+		go w.notifyUsers(ctx, changedUsersWorkers, &wg)
+	}
+
+	wg.Wait()
 }

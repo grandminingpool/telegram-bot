@@ -11,28 +11,28 @@ import (
 )
 
 type UserDB struct {
-	ID           int64  `db:"id"`
-	ChatID       int64  `db:"chat_id"`
-	Lang         string `db:"lang"`
-	PayoutNotify bool   `db:"payout_notify"`
-	BlockNotify  bool   `db:"block_notify"`
+	ID            int64  `db:"id"`
+	ChatID        int64  `db:"chat_id"`
+	Lang          string `db:"lang"`
+	PayoutsNotify bool   `db:"payouts_notify"`
+	BlocksNotify  bool   `db:"blocks_notify"`
 }
 
 type UserService struct {
 	pgConn *sqlx.DB
 }
 
-func (s *UserService) SetPayoutNotify(ctx context.Context, id int64, value bool) error {
-	if _, err := s.pgConn.ExecContext(ctx, "UPDATE users SET payout_notify = $1 WHERE user_id = $2", value, id); err != nil {
-		return fmt.Errorf("failed to update user (id: %d) payout notify: %w", id, err)
+func (s *UserService) SetPayoutsNotify(ctx context.Context, id int64, value bool) error {
+	if _, err := s.pgConn.ExecContext(ctx, "UPDATE users SET payouts_notify = $1 WHERE user_id = $2", value, id); err != nil {
+		return fmt.Errorf("failed to update user (id: %d) payouts notify: %w", id, err)
 	}
 
 	return nil
 }
 
-func (s *UserService) SetBlockNotify(ctx context.Context, id int64, value bool) error {
-	if _, err := s.pgConn.ExecContext(ctx, "UPDATE users SET block_notify = $1 WHERE user_id = $2", value, id); err != nil {
-		return fmt.Errorf("failed to update user (id: %d) block notify: %w", id, err)
+func (s *UserService) SetBlocksNotify(ctx context.Context, id int64, value bool) error {
+	if _, err := s.pgConn.ExecContext(ctx, "UPDATE users SET blocks_notify = $1 WHERE user_id = $2", value, id); err != nil {
+		return fmt.Errorf("failed to update user (id: %d) blocks notify: %w", id, err)
 	}
 
 	return nil
@@ -66,25 +66,25 @@ func (s *UserService) Init(ctx context.Context, botUser *models.User, chatID int
 
 	if user == nil {
 		user = &UserDB{
-			ID:           botUser.ID,
-			ChatID:       chatID,
-			Lang:         botUser.LanguageCode,
-			PayoutNotify: true,
-			BlockNotify:  true,
+			ID:            botUser.ID,
+			ChatID:        chatID,
+			Lang:          botUser.LanguageCode,
+			PayoutsNotify: true,
+			BlocksNotify:  true,
 		}
 
 		if _, err := s.pgConn.ExecContext(ctx, `INSERT INTO users (
 			id, 
 			chat_id,
 			lang, 
-			payout_notify, 
-			block_notify
+			payouts_notify, 
+			blocks_notify
 		) VALUES (?, ?, ?, ?)`,
 			user.ID,
 			user.ChatID,
 			user.Lang,
-			user.PayoutNotify,
-			user.BlockNotify,
+			user.PayoutsNotify,
+			user.BlocksNotify,
 		); err != nil {
 			return nil, fmt.Errorf("failed to create user: %w", err)
 		}

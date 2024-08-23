@@ -15,8 +15,8 @@ import (
 const USER_CTX_KEY types.CtxKey = "botUser"
 
 type UserSettings struct {
-	PayoutNotify bool
-	BlockNotify  bool
+	PayoutsNotify bool
+	BlocksNotify  bool
 }
 
 type UserAction struct {
@@ -71,8 +71,8 @@ func (m *UserMiddleware) Middleware(next bot.HandlerFunc) bot.HandlerFunc {
 				Lang:      user.Lang,
 				Localizer: userLocalizer,
 				Settings: UserSettings{
-					PayoutNotify: user.PayoutNotify,
-					BlockNotify:  user.BlockNotify,
+					PayoutsNotify: user.PayoutsNotify,
+					BlocksNotify:  user.BlocksNotify,
 				},
 				Action: nil,
 			}

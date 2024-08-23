@@ -60,13 +60,13 @@ func RegisterHandlers(
 	config *botConfig.Config,
 ) {
 	//	init handlers
-	faqHandler := handlers.NewFAQHandler(config.PoolURL, config.CheckIntervals.Workers, config.SupportBot.Username)
+	faqHandler := handlers.NewFAQHandler(config.PoolURL, config.Notify.CheckIntervals.Workers, config.SupportBot.Username)
 	reportBugHandler := handlers.NewReportBugHandler(feedbackService, userActionService, config.SupportBot.Username)
 	addWalletHandler := handlers.NewAddWalletHandler(
 		userActionService,
 		userWalletService,
 		blockchainsService,
-		config.CheckIntervals.Workers,
+		config.Notify.CheckIntervals.Workers,
 	)
 
 	//	command handlers

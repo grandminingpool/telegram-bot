@@ -20,17 +20,21 @@ PoolStatsButton = "📈 Pool statistics"
 
 SettingsButton = "⚙️ Settings"
 
-SettingsEnablePayoutNotifyButton = "🔔 Enable payout notifications"
+SettingsEnablePayoutsNotifyButton = "🔔 Enable payout notifications"
 
-SettingsDisablePayoutNotifyButton = "🔕 Disable payout notifications"
+SettingsDisablePayoutsNotifyButton = "🔕 Disable payout notifications"
 
-SettingsEnableBlockNotifyButton = "🔔 Enable block notifications"
+SettingsEnableBlocksNotifyButton = "🔔 Enable block notifications"
 
-SettingsDisableBlockNotifyButton = "🔕 Disable block notifications"
+SettingsDisableBlocksNotifyButton = "🔕 Disable block notifications"
 
-PayoutNotificationsEnabled = "Payout notifications enabled.\n\nYou will receive notifications about payouts once they have been sent from the pool."
+PayoutsNotificationsEnabled = "Payout notifications enabled.\n\nYou will receive notifications about payouts once they have been sent from the pool."
 
-PayoutNotificationsDisabled = "Payout notifications disabled"
+PayoutsNotificationsDisabled = "Payout notifications disabled"
+
+BlocksNotificationsEnabled = "Block notifications enabled.\n\nYou will receive notifications about blocks once they have been confirmed. Works only for solo."
+
+BlocksNotificationsDisabled = "Block notifications disabled"
 
 SettingsLanguageButton = "🌍 Language"
 
@@ -64,11 +68,15 @@ WalletAdded = "Wallet have been successfully added 🎉\n\nNow you can take into
 
 WalletRemoved = "Wallet have been deleted successfully"
 
-WalletBalance = "Wallet: **{{.Wallet}}**\nPool: **{{.PoolBlockchainName}}**\n\nBalance: **{{.Balance}} {{.Ticker}}**."
+WalletInfo = "Wallet: **{{.Wallet}}**\nPool: **{{.PoolBlockchainName}}**"
 
-WalletLeftForPayment = "Left for payment: {{.Balance}} / {{.MinPayout}} {{.Ticker}}."
+WalletBalance = "Balance: **{{.Balance}} {{.Ticker}}**"
 
-WorkerInfo = "Wallet: **{{.Wallet}}**\nPool: **{{.PoolBlockchainName}}**\nRegion: {{.Region}}\n\nWorker: **{{.Worker}}**\nSolo: **{{.Solo}}**\nHashrate: {{.Hashrate}}\nUptime: {{.Uptime}}"
+WalletLeftForPayment = "Left for payment: {{.Balance}} / {{.MinPayout}} {{.Ticker}}"
+
+WorkerInfoShort = "Region: **{{.Region}}**\nSolo: **{{.Solo}}**\nConnected at: **{{.ConnectedAt}}**"
+
+WorkerInfo = "Worker: **{{.Worker}}**Region: **{{.Region}}**\nSolo: **{{.Solo}}**\nHashrate: {{.Hashrate}}\nUptime: {{.Uptime}}"
 
 PoolStatsMainInfo = "Pool: **{{.PoolBlockchainName}}**\nAlgos: **{{.Algos}}**\nPayout mode: **{{.PayoutMode}}**\nSupport solo mining: **{{.Solo}}**"
 
@@ -83,6 +91,18 @@ PoolStatsSoloMiningInfoCaption = "**Solo mining statistics**"
 PoolStatsMiningInfo = "Miners count: {{.MinersCount}}\nTotal hashrate: {{.TotalHashrate}}\nAverage hashrate: {{.AvgHashrate}}"
 
 UserFeedbackSent = "Thank you for your feedback!\nI've sent your message to developers. They'll look into it 🙏🏻\n\nNeed real human help? Feel free to message us! @{{.SupportBotUsername}}"
+
+WorkerActive = "✨ Worker **{{.Worker}}** is active again!"
+
+WorkerInactive = "❗️ Worker **{{.Worker}}** is not active"
+
+NewPayoutReceived = "💰 New payout received!"
+
+PayoutInfo = "Amount: **{{.Amount}} {{.Ticker}}**\nTx hash: {{.TxHash}}\nPaid at: {{.PaidAt}}"
+
+NewBlockFound = "🤑 New block found!"
+
+SoloPayoutInfo = "Reward: **{{.Reward}} {{.Ticker}}**\nBlock hash: {{.BlockHash}}\nTx hash: {{.TxHash}}\nPaid at: {{.PaidAt}}"
 
 Yes = "Yes"
 

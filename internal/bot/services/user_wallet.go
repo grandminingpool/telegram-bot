@@ -30,7 +30,7 @@ type UserWalletInfo struct {
 
 type UserPoolWallets struct {
 	Pool    *PoolInfo
-	Wallets []*UserWalletInfo
+	Wallets []UserWalletInfo
 }
 
 type UserPoolBalances struct {
@@ -65,19 +65,19 @@ type UserWalletService struct {
 	blockchainsService *blockchains.Service
 }
 
-func (w *UserWalletService) FindBlockchains(ctx context.Context, userID int64) ([]*blockchains.BlockchainInfo, error) {
+func (w *UserWalletService) FindBlockchains(ctx context.Context, userID int64) ([]blockchains.BlockchainInfo, error) {
 	rows, err := w.pgConn.QueryContext(ctx, "SELECT DISTINCT blockchain_coin FROM user_wallets WHERE user_id = $1", userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find user (id: %d) blockchains: %w", userID, err)
 	}
 
 	blockchainsInfo := w.blockchainsService.GetBlockchainsInfo()
-	userBlockchains := []*blockchains.BlockchainInfo{}
+	userBlockchains := []blockchains.BlockchainInfo{}
 
 	for rows.Next() {
 		var coin string
 		if err := rows.Scan(&coin); err == nil {
-			idx := slices.IndexFunc(blockchainsInfo, func(blockchain *blockchains.BlockchainInfo) bool {
+			idx := slices.IndexFunc(blockchainsInfo, func(blockchain blockchains.BlockchainInfo) bool {
 				return blockchain.Coin == coin
 			})
 
@@ -87,11 +87,11 @@ func (w *UserWalletService) FindBlockchains(ctx context.Context, userID int64) (
 		}
 	}
 
-	return blockchainsInfo, nil
+	return userBlockchains, nil
 }
 
-func (w *UserWalletService) getPoolsInfoMap(ctx context.Context, coins []string) (map[string]*PoolInfo, error) {
-	poolsInfoMap := make(map[string]*PoolInfo)
+func (w *UserWalletService) getPoolsInfoMap(ctx context.Context, coins []string) (map[string]PoolInfo, error) {
+	poolsInfoMap := make(map[string]PoolInfo)
 	resultCh := make(chan PoolInfo, len(coins))
 	errCh := make(chan error, len(coins))
 	newCtx, cancel := context.WithCancel(ctx)
@@ -136,7 +136,7 @@ func (w *UserWalletService) getPoolsInfoMap(ctx context.Context, coins []string)
 		case err := <-errCh:
 			return nil, err
 		case poolInfo := <-resultCh:
-			poolsInfoMap[poolInfo.Blockchain.Coin] = &poolInfo
+			poolsInfoMap[poolInfo.Blockchain.Coin] = poolInfo
 		default:
 		}
 	}
@@ -144,35 +144,37 @@ func (w *UserWalletService) getPoolsInfoMap(ctx context.Context, coins []string)
 	return poolsInfoMap, nil
 }
 
-func (w *UserWalletService) getWalletsMap(ctx context.Context, userID int64) (map[string]*UserPoolWallets, error) {
-	walletsMap := make(map[string]*UserPoolWallets)
+func (w *UserWalletService) getWalletsMap(ctx context.Context, userID int64) (map[string]UserPoolWallets, error) {
+	walletsMap := make(map[string]UserPoolWallets)
 	rows, err := w.pgConn.QueryContext(ctx, "SELECT id, blockchain_coin, wallet, added_at from user_wallets WHERE user_id = $1 ORDER BY added_at", userID)
 	coins := []string{}
 	if err != nil {
-		for rows.Next() {
-			var (
-				id           int64
-				coin, wallet string
-				addedAt      time.Time
-			)
-			if err := rows.Scan(&id, &coin, &wallet, &addedAt); err != nil {
-				return nil, fmt.Errorf("failed to scan user (id: %d) wallets columns: %w", userID, err)
-			}
+		return nil, fmt.Errorf("failed to query user (id: %d) wallets: %w", userID, err)
+	}
 
-			coins = append(coins, coin)
-			walletItem := &UserWalletInfo{
-				ID:      id,
-				Wallet:  wallet,
-				AddedAt: addedAt,
-			}
-			wallets, ok := walletsMap[coin]
-			if ok {
-				wallets.Wallets = append(wallets.Wallets, walletItem)
-			} else {
-				walletsMap[coin] = &UserPoolWallets{
-					Pool:    nil,
-					Wallets: []*UserWalletInfo{walletItem},
-				}
+	for rows.Next() {
+		var (
+			id           int64
+			coin, wallet string
+			addedAt      time.Time
+		)
+		if err := rows.Scan(&id, &coin, &wallet, &addedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan user (id: %d) wallets columns: %w", userID, err)
+		}
+
+		coins = append(coins, coin)
+		walletItem := UserWalletInfo{
+			ID:      id,
+			Wallet:  wallet,
+			AddedAt: addedAt,
+		}
+		wallets, ok := walletsMap[coin]
+		if ok {
+			wallets.Wallets = append(wallets.Wallets, walletItem)
+		} else {
+			walletsMap[coin] = UserPoolWallets{
+				Pool:    nil,
+				Wallets: []UserWalletInfo{walletItem},
 			}
 		}
 	}
@@ -186,7 +188,7 @@ func (w *UserWalletService) getWalletsMap(ctx context.Context, userID int64) (ma
 		for coin, wallets := range walletsMap {
 			poolInfo, ok := poolsInfoMap[coin]
 			if ok {
-				wallets.Pool = poolInfo
+				wallets.Pool = &poolInfo
 			}
 		}
 	}
@@ -194,7 +196,7 @@ func (w *UserWalletService) getWalletsMap(ctx context.Context, userID int64) (ma
 	return walletsMap, nil
 }
 
-func (w *UserWalletService) FindWallets(ctx context.Context, userID int64) ([]*UserPoolWallet, error) {
+func (w *UserWalletService) FindWallets(ctx context.Context, userID int64) ([]UserPoolWallet, error) {
 	walletsMap, err := w.getWalletsMap(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -242,7 +244,7 @@ func (w *UserWalletService) FindWallets(ctx context.Context, userID int64) ([]*U
 		}(newCtx, coin, addresses, client)
 	}
 
-	wallets := []*UserPoolWallet{}
+	wallets := []UserPoolWallet{}
 	for i := 0; i < len(walletsMap); i++ {
 		select {
 		case err := <-errCh:
@@ -254,7 +256,7 @@ func (w *UserWalletService) FindWallets(ctx context.Context, userID int64) ([]*U
 					balance, ok := userBalances.Balances[wi.Wallet]
 
 					if ok {
-						wallets = append(wallets, &UserPoolWallet{
+						wallets = append(wallets, UserPoolWallet{
 							Pool:    userWallets.Pool,
 							Wallet:  wi.Wallet,
 							Balance: balance.Balance,
@@ -274,13 +276,13 @@ func (w *UserWalletService) FindWallets(ctx context.Context, userID int64) ([]*U
 	return wallets, nil
 }
 
-func (w *UserWalletService) FindWorkers(ctx context.Context, userID int64) ([]*UserPoolWorker, error) {
+func (w *UserWalletService) FindWorkers(ctx context.Context, userID int64) ([]UserPoolWorker, error) {
 	walletsMap, err := w.getWalletsMap(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
 
-	workersMap := make(map[string]*UserPoolWorkers)
+	workersMap := make(map[string]UserPoolWorkers)
 	defer clear(workersMap)
 
 	resultCh := make(chan UserPoolWorkers, len(walletsMap))
@@ -322,7 +324,7 @@ func (w *UserWalletService) FindWorkers(ctx context.Context, userID int64) ([]*U
 		}(newCtx, coin, addresses, client)
 	}
 
-	workers := []*UserPoolWorker{}
+	workers := []UserPoolWorker{}
 	for i := 0; i < len(walletsMap); i++ {
 		select {
 		case err := <-errCh:
@@ -334,7 +336,7 @@ func (w *UserWalletService) FindWorkers(ctx context.Context, userID int64) ([]*U
 					wks, ok := userWorkers.Workers[wi.Wallet]
 					if ok {
 						for _, wk := range wks.Workers {
-							workers = append(workers, &UserPoolWorker{
+							workers = append(workers, UserPoolWorker{
 								Pool:        userWallets.Pool,
 								Wallet:      wi.Wallet,
 								Worker:      wk.Worker,
@@ -358,8 +360,8 @@ func (w *UserWalletService) FindWorkers(ctx context.Context, userID int64) ([]*U
 	return workers, nil
 }
 
-func (w *UserWalletService) FindBlockchainWallets(ctx context.Context, userID int64, coin string) ([]*UserWalletInfo, error) {
-	wallets := []*UserWalletInfo{}
+func (w *UserWalletService) FindBlockchainWallets(ctx context.Context, userID int64, coin string) ([]UserWalletInfo, error) {
+	wallets := []UserWalletInfo{}
 	rows, err := w.pgConn.QueryContext(ctx, "SELECT id, wallet FROM user_wallets WHERE user_id = $1 AND blockchain_coin = $2", userID, coin)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find user (id: %d) blockchain (coin: %s) wallets: %w", userID, coin, err)
@@ -371,7 +373,7 @@ func (w *UserWalletService) FindBlockchainWallets(ctx context.Context, userID in
 			wallet string
 		)
 		if err := rows.Scan(&id, &wallet); err == nil {
-			wallets = append(wallets, &UserWalletInfo{
+			wallets = append(wallets, UserWalletInfo{
 				ID:     id,
 				Wallet: wallet,
 			})

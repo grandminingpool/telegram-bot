@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
     id BIGINT NOT NULL PRIMARY KEY,
     chat_id BIGINT NOT NULL,
     lang VARCHAR(16) NOT NULL,
-    payout_notify BOOLEAN NOT NULL DEFAULT true,
+    payouts_notify BOOLEAN NOT NULL DEFAULT true,
     block_notify BOOLEAN NOT NULL DEFAULT true
 );
 
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS user_actions (
 );
 
 CREATE TABLE IF NOT EXISTS user_wallets (
-    id bigint NOT NULL PRIMARY KEY,
+    id BIGINT NOT NULL PRIMARY KEY,
     user_id BIGINT NOT NULL,
     blockchain_coin VARCHAR(32) NOT NULL,
     wallet VARCHAR(256) NOT NULL,
@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS wallet_workers (
 );
 
 ALTER TABLE wallet_workers ADD CONSTRAINT wallet_workers_wallet_fkey FOREIGN KEY (wallet_id) REFERENCES user_wallets(id) ON UPDATE CASCADE ON DELETE CASCADE;
-ALTER TABLE wallet_workers ADD CONSTRAINT wallet_workers_wallet_fkey FOREIGN KEY (wallet) REFERENCES user_wallets(wallet) ON UPDATE CASCADE ON DELETE CASCADE;
+ALTER TABLE wallet_workers ADD CONSTRAINT wallet_workers_unique_worker UNIQUE (wallet_id, worker);
 
 CREATE TABLE IF NOT EXISTS user_feedback (
     user_id BIGINT NOT NULL,
@@ -72,4 +72,23 @@ CREATE TABLE IF NOT EXISTS user_feedback (
     username VARCHAR(32),
     report_message TEXT NOT NULL,
     added_at TIMESTAMP NOT NULL DEFAULT NOW()
-)
+);
+
+CREATE TABLE IF NOT EXISTS payouts_notifications (
+    id BIGINT NOT NULL PRIMARY KEY,
+    executed_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE SEQUENCE payouts_notifications_id_seq
+    AS BIGINT
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+    
+ALTER SEQUENCE payouts_notifications_id_seq OWNED BY payouts_notifications.id;
+ALTER TABLE ONLY payouts_notifications ALTER COLUMN id SET DEFAULT nextval('payouts_notifications_id_seq');
+SELECT setval('payouts_notifications_id_seq', 1);
+
+CREATE INDEX payouts_notifications_executed_time_idx ON payouts_notifications USING BTREE(executed_at);

@@ -21,17 +21,17 @@ const (
 )
 
 type BlockchainsKeyboardHandlerFunc func(context.Context, *middlewares.User, *BlockchainsKeyboard, *bot.Bot, *models.Update)
-type OnBlockchainSelectedHandlerFunc func(context.Context, *middlewares.User, *blockchains.BlockchainInfo, *bot.Bot, *models.Update)
-type OnBlockchainSelectedWithStartKeyboardHandlerFunc func(context.Context, *middlewares.User, *StartKeyboard, *blockchains.BlockchainInfo, *bot.Bot, *models.Update)
+type OnBlockchainSelectedHandlerFunc func(context.Context, *middlewares.User, blockchains.BlockchainInfo, *bot.Bot, *models.Update)
+type OnBlockchainSelectedWithStartKeyboardHandlerFunc func(context.Context, *middlewares.User, *StartKeyboard, blockchains.BlockchainInfo, *bot.Bot, *models.Update)
 
 type BlockchainsKeyboard struct {
-	blockchains     []*blockchains.BlockchainInfo
+	blockchains     []blockchains.BlockchainInfo
 	onSelectHandler OnBlockchainSelectedHandlerFunc
 	onBackHandler   middlewares.UserHandlerFunc
 }
 
 func (k *BlockchainsKeyboard) OnBlockchainSelected(ctx context.Context, user *middlewares.User, b *bot.Bot, update *models.Update) {
-	idx := slices.IndexFunc(k.blockchains, func(blockchain *blockchains.BlockchainInfo) bool {
+	idx := slices.IndexFunc(k.blockchains, func(blockchain blockchains.BlockchainInfo) bool {
 		return blockchain.Name == update.Message.Text
 	})
 	if idx != -1 {
@@ -42,7 +42,7 @@ func (k *BlockchainsKeyboard) OnBlockchainSelected(ctx context.Context, user *mi
 }
 
 func CreateBlockchainsKeyboard(
-	blockchains []*blockchains.BlockchainInfo,
+	blockchains []blockchains.BlockchainInfo,
 	onSelectHandler OnBlockchainSelectedHandlerFunc,
 	onBackHandler middlewares.UserHandlerFunc) *BlockchainsKeyboard {
 	return &BlockchainsKeyboard{
@@ -84,7 +84,7 @@ func WithBlockchainsKeyboardHandler(handler BlockchainsKeyboardHandlerFunc, ctxK
 }
 
 func OnBlockchainSelectedWithStartKeyboardHandler(handler OnBlockchainSelectedWithStartKeyboardHandlerFunc) OnBlockchainSelectedHandlerFunc {
-	return func(ctx context.Context, user *middlewares.User, blockchain *blockchains.BlockchainInfo, b *bot.Bot, update *models.Update) {
+	return func(ctx context.Context, user *middlewares.User, blockchain blockchains.BlockchainInfo, b *bot.Bot, update *models.Update) {
 		startKeyboard, ok := ctx.Value(START_KEYBOARD_CTX_KEY).(*StartKeyboard)
 		if ok {
 			handler(ctx, user, startKeyboard, blockchain, b, update)

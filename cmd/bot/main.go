@@ -19,6 +19,7 @@ import (
 	"github.com/grandminingpool/telegram-bot/internal/common/flags"
 	"github.com/grandminingpool/telegram-bot/internal/common/languages"
 	"github.com/grandminingpool/telegram-bot/internal/common/logger"
+	botNotify "github.com/grandminingpool/telegram-bot/internal/notify"
 	postgresProvider "github.com/grandminingpool/telegram-bot/internal/providers/postgres"
 	"go.uber.org/zap"
 )
@@ -114,6 +115,9 @@ func main() {
 		zap.L().Warn("failed to set bot description", zap.Error(err))
 	}
 
+	//	Create botify service
+	notifyService := botNotify.NewService(pgConn, blockchainsService, b, languages, &botConf.Notify)
+
 	//	Subscribe to system signals
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan,
@@ -134,6 +138,10 @@ func main() {
 		zap.L().Info("waiting for all processes to stop", zap.String("signal", stop.String()))
 
 		var stopErr error
+		if stopErr = notifyService.Stop(); stopErr != nil {
+			zap.L().Fatal("failed to stop notify service", zap.Error(stopErr))
+		}
+
 		ok, stopErr := b.Close(ctx)
 		if stopErr != nil {
 			zap.L().Fatal("failed to close bot instance", zap.Error(stopErr))
@@ -159,6 +167,11 @@ func main() {
 	zap.L().Info("starting bot")
 
 	b.Start(ctx)
+
+	//	Start notify service
+	if err := notifyService.Start(ctx); err != nil {
+		zap.L().Fatal("failed to start notify service", zap.Error(err))
+	}
 
 	wg.Wait()
 	zap.L().Info("bot stopped")

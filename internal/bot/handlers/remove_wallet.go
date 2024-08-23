@@ -53,7 +53,7 @@ func (h *RemoveWalletHandler) BackToBlockchainSelect(ctx context.Context, user *
 func (h *RemoveWalletHandler) OnBlockchainSelected(
 	ctx context.Context,
 	user *middlewares.User,
-	blockchain *blockchains.BlockchainInfo,
+	blockchain blockchains.BlockchainInfo,
 	b *bot.Bot,
 	update *models.Update,
 ) {
@@ -68,7 +68,7 @@ func (h *RemoveWalletHandler) OnBlockchainSelected(
 		return
 	}
 
-	userWalletsKeyboard := botKeyboards.CreateWalletsKeyboard(blockchain, userWallets, botKeyboards.OnWalletSelectedWithStartKeyboardHandler(h.Remove), h.BackToBlockchainSelect)
+	userWalletsKeyboard := botKeyboards.CreateWalletsKeyboard(userWallets, botKeyboards.OnWalletSelectedWithStartKeyboardHandler(h.Remove), h.BackToBlockchainSelect)
 
 	b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: update.Message.Chat.ID,
@@ -83,7 +83,7 @@ func (h *RemoveWalletHandler) Remove(
 	ctx context.Context,
 	user *middlewares.User,
 	startKeyboard *botKeyboards.StartKeyboard,
-	wallet *services.UserWalletInfo,
+	wallet services.UserWalletInfo,
 	b *bot.Bot,
 	update *models.Update,
 ) {

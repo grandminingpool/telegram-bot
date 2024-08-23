@@ -61,7 +61,7 @@ func (h *EnterWalletHandler) BackToBlockchainSelect(
 func (h *EnterWalletHandler) Handler(
 	ctx context.Context,
 	user *middlewares.User,
-	blockchain *blockchains.BlockchainInfo,
+	blockchain blockchains.BlockchainInfo,
 	b *bot.Bot,
 	update *models.Update,
 ) {

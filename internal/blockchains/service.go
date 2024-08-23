@@ -41,11 +41,11 @@ type Blockchain struct {
 
 type Service struct {
 	pgConn      *sqlx.DB
-	blockchains map[string]*Blockchain
+	blockchains map[string]Blockchain
 }
 
-func (s *Service) getBlockchainsFromDB(ctx context.Context) ([]*BlockchainDB, error) {
-	blockchains := []*BlockchainDB{}
+func (s *Service) getBlockchainsFromDB(ctx context.Context) ([]BlockchainDB, error) {
+	blockchains := []BlockchainDB{}
 	if err := s.pgConn.SelectContext(ctx, &blockchains, "SELECT * FROM blockchains"); err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("failed to query blockchains: %w", err)
 	}
@@ -53,11 +53,11 @@ func (s *Service) getBlockchainsFromDB(ctx context.Context) ([]*BlockchainDB, er
 	return blockchains, nil
 }
 
-func (s *Service) GetBlockchainsInfo() []*BlockchainInfo {
-	blockchains := make([]*BlockchainInfo, 0, len(s.blockchains))
+func (s *Service) GetBlockchainsInfo() []BlockchainInfo {
+	blockchains := make([]BlockchainInfo, 0, len(s.blockchains))
 
 	for _, b := range s.blockchains {
-		blockchains = append(blockchains, b.info)
+		blockchains = append(blockchains, *b.info)
 	}
 
 	return blockchains
@@ -95,7 +95,7 @@ func (s *Service) Start(ctx context.Context, certsPath string) error {
 			return fmt.Errorf("failed to create blockchain pool api client (coin: %s), error: %w", b.Coin, err)
 		}
 
-		s.blockchains[b.Coin] = &Blockchain{
+		s.blockchains[b.Coin] = Blockchain{
 			info: &BlockchainInfo{
 				Coin:          b.Coin,
 				Name:          b.Name,
@@ -121,6 +121,6 @@ func (s *Service) Close() {
 func NewService(pgConn *sqlx.DB) *Service {
 	return &Service{
 		pgConn:      pgConn,
-		blockchains: make(map[string]*Blockchain),
+		blockchains: make(map[string]Blockchain),
 	}
 }

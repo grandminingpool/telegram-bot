@@ -19,7 +19,7 @@ type AddWalletHandler struct {
 	userActionService    *services.UserActionService
 	userWalletService    *services.UserWalletService
 	blockchainsService   *blockchains.Service
-	checkWorkersInterval int8
+	checkWorkersInterval int
 	walletsLimitPerUser  int
 }
 
@@ -96,7 +96,14 @@ func (h *AddWalletHandler) Handler(ctx context.Context, user *middlewares.User, 
 
 			hasDuplicates, err := h.userWalletService.CheckDuplicates(ctx, user.ID, blockchain.Coin, wallet)
 			if err != nil {
+				zap.L().Error("check user wallet duplicates error",
+					zap.Int64("user_id", user.ID),
+					zap.String("coin", coin),
+					zap.String("wallet", wallet),
+					zap.Error(err),
+				)
 
+				return
 			}
 
 			if hasDuplicates {
@@ -149,7 +156,7 @@ func NewAddWalletHandler(
 	userActionService *services.UserActionService,
 	userWalletService *services.UserWalletService,
 	blockchainsService *blockchains.Service,
-	checkWorkersInterval int8,
+	checkWorkersInterval int,
 ) *AddWalletHandler {
 	return &AddWalletHandler{
 		userActionService:    userActionService,

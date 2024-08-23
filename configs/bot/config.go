@@ -2,6 +2,7 @@ package botConfig
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	configUtils "github.com/grandminingpool/telegram-bot/internal/common/utils/config"
@@ -9,9 +10,16 @@ import (
 )
 
 type CheckIntervalsConfig struct {
-	Workers  int8 `mapstructure:"workers"`
-	Blocks   int8 `mapstructure:"blocks"`
-	Payments int8 `mapstructure:"payments"`
+	Workers int `mapstructure:"workers"`
+	Payouts int `mapstructure:"payouts"`
+}
+
+func (c CheckIntervalsConfig) WorkersDuration() time.Duration {
+	return time.Duration(c.Workers) * time.Minute
+}
+
+func (c CheckIntervalsConfig) PayoutsDuration() time.Duration {
+	return time.Duration(c.Payouts) * time.Minute
 }
 
 type SupportBotConfig struct {
@@ -20,17 +28,19 @@ type SupportBotConfig struct {
 }
 
 type NotifyConfig struct {
-	MaxWalletsInRequest  int `mapstructure:"maxWalletsInRequest"`
-	MaxUsersChangesLimit int `mapstructure:"maxUsersChangesLimit"`
+	MaxWalletsInPayoutsRequest int                  `mapstructure:"maxWalletsInPayoutsRequest"`
+	MaxWalletsInWorkersRequest int                  `mapstructure:"maxWalletsInWorkersRequest"`
+	MaxUsersDBChangesLimit     int                  `mapstructure:"maxUsersDBChangesLimit"`
+	ParallelNotificationsCount int                  `mapstructure:"parallelNotificationsCount"`
+	CheckIntervals             CheckIntervalsConfig `mapstructure:"checkIntervals"`
 }
 
 type Config struct {
-	BotToken            string               `mapstructure:"botToken" validate:"required"`
-	CheckIntervals      CheckIntervalsConfig `mapstructure:"checkIntervals"`
-	PoolURL             string               `mapstructure:"poolURL" validate:"required"`
-	SupportBot          SupportBotConfig     `mapstructure:"supportBot" validate:"required"`
-	WalletsLimitPerUser int                  `mapstructure:"walletsLimitPerUser"`
-	Notify              NotifyConfig         `mapstructure:"notify"`
+	BotToken            string           `mapstructure:"botToken" validate:"required"`
+	PoolURL             string           `mapstructure:"poolURL" validate:"required"`
+	SupportBot          SupportBotConfig `mapstructure:"supportBot" validate:"required"`
+	WalletsLimitPerUser int              `mapstructure:"walletsLimitPerUser"`
+	Notify              NotifyConfig     `mapstructure:"notify"`
 }
 
 const configName = "bot"
@@ -40,12 +50,15 @@ func New(configsPath string, validate *validator.Validate) (*Config, error) {
 	botViper.AddConfigPath(fmt.Sprintf("%s/bot", configsPath))
 	botViper.SetConfigType("yaml")
 
-	botViper.SetDefault("checkIntervals.workers", 5)
-	botViper.SetDefault("checkIntervals.payments", 60)
-	botViper.SetDefault("checkIntervals.blocks", 120)
 	botViper.SetDefault("walletsLimitPerUser", 50)
-	botViper.SetDefault("notify.maxWalletsInRequest", 200)
-	botViper.SetDefault("notify.maxUsersChangesLimit", 50)
+	botViper.SetDefault("notify.maxWalletsInWorkersRequest", 200)
+	botViper.SetDefault("notify.maxWalletsInPayoutsRequest", 250)
+	botViper.SetDefault("notify.maxUsersDBChangesLimit", 50)
+	botViper.SetDefault("notify.parallelNotificationsCount", 40)
+	botViper.SetDefault("notify.paymentsInterval", 60)
+	botViper.SetDefault("notify.soloPaymentsInterval", 200)
+	botViper.SetDefault("notify.checkIntervals.workers", 5)
+	botViper.SetDefault("notify.checkIntervals.payouts", 60)
 
 	if err := configUtils.ReadConfig(botViper, configName); err != nil {
 		return nil, err

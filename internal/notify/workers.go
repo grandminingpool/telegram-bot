@@ -231,7 +231,7 @@ func (w *Workers) getWorkers(
 			workers:  nil,
 			err:      nil,
 		}
-		workers, err := client.GetWorkers(ctx, &poolMinersProto.MinerAddressesRequest{
+		workers, err := client.GetMinersWorkersFromList(ctx, &poolMinersProto.MinerAddressesRequest{
 			Addresses: wallets,
 		})
 		if err != nil {

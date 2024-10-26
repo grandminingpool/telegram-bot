@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-telegram/bot"
 	poolPayoutsProto "github.com/grandminingpool/pool-api-proto/generated/pool_payouts"
+	filtersProto "github.com/grandminingpool/pool-api-proto/generated/utils/filters"
 	botConfig "github.com/grandminingpool/telegram-bot/configs/bot"
 	"github.com/grandminingpool/telegram-bot/internal/blockchains"
 	"github.com/grandminingpool/telegram-bot/internal/common/languages"
@@ -51,14 +52,14 @@ type UserWalletSoloPayouts struct {
 type PoolPayouts struct {
 	groupNum int
 	coin     string
-	payouts  map[string]*poolPayoutsProto.MinerPayouts
+	payouts  map[string]*poolPayoutsProto.Payouts
 	err      error
 }
 
 type PoolSoloPayouts struct {
 	groupNum int
 	coin     string
-	payouts  map[string]*poolPayoutsProto.MinerSoloPayouts
+	payouts  map[string]*poolPayoutsProto.MinedSoloBlocks
 	err      error
 }
 
@@ -236,16 +237,20 @@ func (p *Payouts) getSoloPayouts(
 			err:      nil,
 		}
 
-		soloPayouts, err := client.GetSoloPayouts(ctx, &poolPayoutsProto.MinersPayoutsRequest{
-			Addresses: wallets,
-			Filters: &poolPayoutsProto.MinersPayoutsFilters{
-				PaidFrom: timestamppb.New(paidFrom),
+		soloPayouts, err := client.GetSoloBlocksFromList(ctx, &poolPayoutsProto.GetSoloBlocksFromListRequest{
+			Miners: wallets,
+			Filters: &poolPayoutsProto.MinedSoloBlocksFilters{
+				MinedAt: &filtersProto.DateFilter{
+					Operators: &filtersProto.DateFilter_Start{
+						Start: timestamppb.New(paidFrom),
+					},
+				},
 			},
 		})
 		if err != nil {
 			result.err = fmt.Errorf("failed to get pool solo payouts: %w", err)
 		} else {
-			result.payouts = soloPayouts.Payouts
+			result.payouts = soloPayouts.Blocks
 		}
 
 		resultCh <- result
@@ -272,10 +277,14 @@ func (p *Payouts) getPayouts(
 			err:      nil,
 		}
 
-		payouts, err := client.GetPayouts(ctx, &poolPayoutsProto.MinersPayoutsRequest{
-			Addresses: wallets,
-			Filters: &poolPayoutsProto.MinersPayoutsFilters{
-				PaidFrom: timestamppb.New(paidFrom),
+		payouts, err := client.GetPayoutsFromList(ctx, &poolPayoutsProto.GetPayoutsFromListRequest{
+			Miners: wallets,
+			Filters: &poolPayoutsProto.PayoutsFilters{
+				PaidAt: &filtersProto.DateFilter{
+					Operators: &filtersProto.DateFilter_Start{
+						Start: timestamppb.New(paidFrom),
+					},
+				},
 			},
 		})
 		if err != nil {
@@ -542,13 +551,13 @@ func (p *Payouts) Check(ctx context.Context) {
 							wallet:     wallet,
 							blockchain: blockchain,
 						}
-						userWalletSoloPayouts := make([]*SoloPayoutInfo, 0, len(walletSoloPayouts.Payouts))
-						for _, walletSoloPayout := range walletSoloPayouts.Payouts {
+						userWalletSoloPayouts := make([]*SoloPayoutInfo, 0, len(walletSoloPayouts.Blocks))
+						for _, walletSoloPayout := range walletSoloPayouts.Blocks {
 							userWalletSoloPayouts = append(userWalletSoloPayouts, &SoloPayoutInfo{
 								reward:    walletSoloPayout.Reward,
 								blockHash: walletSoloPayout.BlockHash,
 								txHash:    walletSoloPayout.TxHash,
-								paidAt:    walletSoloPayout.PaidAt.AsTime(),
+								paidAt:    walletSoloPayout.MinedAt.AsTime(),
 							})
 						}
 

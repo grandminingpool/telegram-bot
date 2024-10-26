@@ -12,7 +12,7 @@ require (
 	github.com/go-telegram/bot v1.5.0 // indirect
 	github.com/go-telegram/ui v0.3.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/grandminingpool/pool-api-proto v0.4.0 // indirect
+	github.com/grandminingpool/pool-api-proto v0.12.0 // indirect
 	github.com/hashicorp/go-set/v2 v2.1.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/jmoiron/sqlx v1.4.0 // indirect

@@ -188,7 +188,10 @@ func (w *UserWalletService) getWalletsMap(ctx context.Context, userID int64) (ma
 		for coin, wallets := range walletsMap {
 			poolInfo, ok := poolsInfoMap[coin]
 			if ok {
-				wallets.Pool = &poolInfo
+				walletsMap[coin] = UserPoolWallets{
+					Pool:    &poolInfo,
+					Wallets: wallets.Wallets,
+				}
 			}
 		}
 	}
@@ -229,7 +232,7 @@ func (w *UserWalletService) FindWallets(ctx context.Context, userID int64) ([]Us
 			case <-c.Done():
 				return
 			default:
-				balances, err := client.GetBalances(ctx, &poolMinersProto.MinerAddressesRequest{
+				balances, err := client.GetMinersBalancesFromList(ctx, &poolMinersProto.MinerAddressesRequest{
 					Addresses: adds,
 				})
 				if err != nil {
@@ -309,7 +312,7 @@ func (w *UserWalletService) FindWorkers(ctx context.Context, userID int64) ([]Us
 			case <-c.Done():
 				return
 			default:
-				workers, err := client.GetWorkers(ctx, &poolMinersProto.MinerAddressesRequest{
+				workers, err := client.GetMinersWorkersFromList(ctx, &poolMinersProto.MinerAddressesRequest{
 					Addresses: adds,
 				})
 				if err != nil {

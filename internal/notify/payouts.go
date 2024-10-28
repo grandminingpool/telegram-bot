@@ -240,10 +240,8 @@ func (p *Payouts) getSoloPayouts(
 		soloPayouts, err := client.GetSoloBlocksFromList(ctx, &poolPayoutsProto.GetSoloBlocksFromListRequest{
 			Miners: wallets,
 			Filters: &poolPayoutsProto.MinedSoloBlocksFilters{
-				MinedAt: &filtersProto.DateFilter{
-					Operators: &filtersProto.DateFilter_Start{
-						Start: timestamppb.New(paidFrom),
-					},
+				MinedAt: &filtersProto.DateTimeRangeFilter{
+					Start: timestamppb.New(paidFrom),
 				},
 			},
 		})
@@ -280,10 +278,8 @@ func (p *Payouts) getPayouts(
 		payouts, err := client.GetPayoutsFromList(ctx, &poolPayoutsProto.GetPayoutsFromListRequest{
 			Miners: wallets,
 			Filters: &poolPayoutsProto.PayoutsFilters{
-				PaidAt: &filtersProto.DateFilter{
-					Operators: &filtersProto.DateFilter_Start{
-						Start: timestamppb.New(paidFrom),
-					},
+				PaidAt: &filtersProto.DateTimeRangeFilter{
+					Start: timestamppb.New(paidFrom),
 				},
 			},
 		})

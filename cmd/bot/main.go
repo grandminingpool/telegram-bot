@@ -35,7 +35,11 @@ func main() {
 	flagsConf := flags.SetupFlags(parsedFlags)
 
 	//	Setup logger
-	zapLogger, err := logger.SetupLogger(flagsConf.Mode)
+	zapLogger, err := logger.SetupLogger(&logger.LoggerConfig{
+		AppMode:         flagsConf.Mode,
+		OutputPath:      flagsConf.Logger.OutputPath,
+		ErrorOutputPath: flagsConf.Logger.ErrorOutputPath,
+	})
 	if err != nil {
 		log.Fatal(fmt.Errorf("failed to setup zap logger: %w", err))
 	}
@@ -63,6 +67,8 @@ func main() {
 	if err != nil {
 		zap.L().Fatal("failed to create postgres connection", zap.Error(err))
 	}
+
+	zap.L().Info("successfully connected to postgres database")
 
 	//	Init blockchains service and start
 	blockchainsService := blockchains.NewService(pgConn)

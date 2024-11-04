@@ -73,6 +73,10 @@ func SetupFlags(parsedFlags *ParsedFlags) *FlagsConfig {
 	appMode := AppModeDev
 	configsPath := CONFIGS_PATH_DEFAULT
 	certsPath := CERTS_PATH_DEFAULT
+	loggerConfig := FlagsLoggerConfig{
+		OutputPath:      LOGGER_OUTPUT_PATH_DEFAULT,
+		ErrorOutputPath: LOGGER_ERROR_OUTPUT_PATH_DEFAULT,
+	}
 	localesPath := LOCALES_PATH_DEFAULT
 	locales := []language.Tag{language.English}
 
@@ -86,6 +90,14 @@ func SetupFlags(parsedFlags *ParsedFlags) *FlagsConfig {
 
 	if parsedFlags.CertsPath != nil {
 		certsPath = *parsedFlags.CertsPath
+	}
+
+	if parsedFlags.LoggerOutputPath != nil {
+		loggerConfig.OutputPath = *parsedFlags.LoggerOutputPath
+	}
+
+	if parsedFlags.LoggerErrorOutputPath != nil {
+		loggerConfig.ErrorOutputPath = *parsedFlags.LoggerErrorOutputPath
 	}
 
 	if parsedFlags.LocalesPath != nil {

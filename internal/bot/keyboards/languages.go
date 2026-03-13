@@ -1,84 +1,55 @@
-package botKeyboards
+package keyboards
 
 import (
-	"context"
-	"slices"
-
-	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/go-telegram/ui/keyboard/reply"
-	"github.com/grandminingpool/telegram-bot/internal/bot/middlewares"
-	"github.com/grandminingpool/telegram-bot/internal/bot/services"
 	"github.com/grandminingpool/telegram-bot/internal/common/languages"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
-const (
-	LANGUAGES_KEYBOARD_PREFIX = "languages"
-	LANGUAGES_KEYBOARD_COLS   = 2
-)
+const languagesKeyboardCols = 2
 
-type LanguagesKeyboard struct {
-	userService *services.UserService
-	localizers  []languages.LocalizersItem
-}
-
-func (k *LanguagesKeyboard) OnLocaleSelected(ctx context.Context, user *middlewares.User, b *bot.Bot, update *models.Update) {
-	idx := slices.IndexFunc(k.localizers, func(l languages.LocalizersItem) bool {
+func FindLocaleByName(localizers []languages.LocalizersItem, text string) *languages.LocalizersItem {
+	for _, l := range localizers {
 		localeMsg, err := l.Localizer.Localize(&i18n.LocalizeConfig{
 			MessageID: "Language",
 		})
-
-		return err == nil && localeMsg == update.Message.Text
-	})
-
-	if idx != -1 {
-		l := k.localizers[idx]
-
-		k.userService.SetLang(ctx, user.ID, l.Tag)
-	}
-}
-
-func (k *LanguagesKeyboard) Back(ctx context.Context, user *middlewares.User, settingsKeyboard *SettingsKeyboard, b *bot.Bot, update *models.Update) {
-	b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: update.Message.Chat.ID,
-		Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
-			MessageID: "ReturningToSettingsMenu",
-		}),
-		ReplyMarkup: CreateSettingsReplyKeyboard(b, settingsKeyboard, user.Localizer),
-	})
-}
-
-func CreateLanguagesKeyboard(
-	userService *services.UserService,
-	localizers []languages.LocalizersItem,
-) *LanguagesKeyboard {
-	return &LanguagesKeyboard{
-		userService: userService,
-		localizers:  localizers,
-	}
-}
-
-func CreateLanguagesReplyKeyboard(b *bot.Bot, languagesKeyboard *LanguagesKeyboard, localizer *i18n.Localizer) *reply.ReplyKeyboard {
-	replyKeyboard := reply.New(b, reply.IsSelective(), reply.WithPrefix(LANGUAGES_KEYBOARD_PREFIX)).Row()
-	cols := 0
-	for _, l := range languagesKeyboard.localizers {
-		replyKeyboard = replyKeyboard.Button(l.Localizer.MustLocalize(&i18n.LocalizeConfig{
-			MessageID: "Language",
-		}), b, bot.MatchTypeExact, middlewares.WithUserHandler(languagesKeyboard.OnLocaleSelected))
-		if cols == LANGUAGES_KEYBOARD_COLS {
-			replyKeyboard = replyKeyboard.Row()
-			cols = 0
-		} else {
-			cols++
+		if err == nil && localeMsg == text {
+			return &l
 		}
 	}
 
-	if cols < LANGUAGES_KEYBOARD_COLS {
-		replyKeyboard = replyKeyboard.Row()
+	return nil
+}
+
+func CreateLanguagesReplyKeyboard(localizers []languages.LocalizersItem, localizer *i18n.Localizer) *models.ReplyKeyboardMarkup {
+	rows := [][]models.KeyboardButton{}
+	row := []models.KeyboardButton{}
+
+	for _, l := range localizers {
+		row = append(row, models.KeyboardButton{
+			Text: l.Localizer.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: "Language",
+			}),
+		})
+
+		if len(row) == languagesKeyboardCols {
+			rows = append(rows, row)
+			row = []models.KeyboardButton{}
+		}
 	}
 
-	return replyKeyboard.Button(localizer.MustLocalize(&i18n.LocalizeConfig{
-		MessageID: "BackButton",
-	}), b, bot.MatchTypeExact, middlewares.WithUserHandler(WithSettingsKeyboardHandler(languagesKeyboard.Back))).Row()
+	if len(row) > 0 {
+		rows = append(rows, row)
+	}
+
+	rows = append(rows, []models.KeyboardButton{
+		{Text: localizer.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: "BackButton",
+		})},
+	})
+
+	return &models.ReplyKeyboardMarkup{
+		Keyboard:  rows,
+		ResizeKeyboard: true,
+	}
 }

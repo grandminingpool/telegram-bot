@@ -1,4 +1,4 @@
-package formatUtils
+package format
 
 import (
 	"strings"
@@ -22,14 +22,18 @@ func BoolText(value bool, l *i18n.Localizer) string {
 func UptimeText(t time.Time, l *i18n.Localizer) string {
 	uptimeTextItems := []string{}
 	elapsed := time.Since(t)
-	hours := elapsed.Hours()
-	days := hours / 24
-	minutes := elapsed.Minutes()
+	totalMinutes := int(elapsed.Minutes())
+	days := totalMinutes / (60 * 24)
+	hours := (totalMinutes % (60 * 24)) / 60
+	minutes := totalMinutes % 60
 
 	if days > 0 {
 		uptimeTextItems = append(uptimeTextItems, l.MustLocalize(&i18n.LocalizeConfig{
 			MessageID:   "Day",
 			PluralCount: days,
+			TemplateData: map[string]interface{}{
+				"Count": days,
+			},
 		}))
 	}
 
@@ -37,6 +41,9 @@ func UptimeText(t time.Time, l *i18n.Localizer) string {
 		uptimeTextItems = append(uptimeTextItems, l.MustLocalize(&i18n.LocalizeConfig{
 			MessageID:   "Hour",
 			PluralCount: hours,
+			TemplateData: map[string]interface{}{
+				"Count": hours,
+			},
 		}))
 	}
 
@@ -44,6 +51,9 @@ func UptimeText(t time.Time, l *i18n.Localizer) string {
 		uptimeTextItems = append(uptimeTextItems, l.MustLocalize(&i18n.LocalizeConfig{
 			MessageID:   "Minute",
 			PluralCount: minutes,
+			TemplateData: map[string]interface{}{
+				"Count": minutes,
+			},
 		}))
 	}
 

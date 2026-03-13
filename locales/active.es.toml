@@ -1,0 +1,129 @@
+Language = "🇪🇸 Español"
+
+BotDescription = "¡Hola!\n\nSoy un bot de monitoreo de minería de Grand Pool. Te ayudaré a rastrear el proceso de minería, pagos, mostrar estadísticas del pool y notificarte cuando tus dispositivos estén inactivos."
+
+DefaultMessage = "Selecciona un comando del menú del bot"
+
+FAQMessage = "<b>¿Cómo empezar?</b>\nAgrega una billetera que estés usando para minar en Grand Pool ({{.PoolURL}}) a través del menú «Agregar billetera». Después podrás consultar tu balance en «Billeteras» y las estadísticas detalladas de workers en «Workers».\n\n<b>Notificaciones</b>\nEl bot te enviará una notificación en los siguientes casos:\n1. Uno de tus workers está inactivo durante ~{{.CheckWorkersInterval}} minutos;\n2. Se recibió un nuevo pago del pool;\n3. Tus workers encontraron un nuevo bloque.\n\n¿Algo no funciona o tienes preguntas? Únete a nuestro chat: {{.PoolChatLink}}"
+
+ReportBugMessage = "Cuéntanos, ¿qué pasó?"
+
+AddWalletButton = "➕ Agregar billetera"
+
+RemoveWalletButton = "➖ Eliminar billetera"
+
+WalletsButton = "💰 Billeteras"
+
+WorkersButton = "🔨 Workers"
+
+PoolStatsButton = "📈 Estadísticas del pool"
+
+SettingsButton = "⚙️ Configuración"
+
+SettingsEnablePayoutsNotifyButton = "🔔 Activar notificaciones de pagos"
+
+SettingsDisablePayoutsNotifyButton = "🔕 Desactivar notificaciones de pagos"
+
+SettingsEnableBlocksNotifyButton = "🔔 Activar notificaciones de bloques"
+
+SettingsDisableBlocksNotifyButton = "🔕 Desactivar notificaciones de bloques"
+
+PayoutsNotificationsEnabled = "Notificaciones de pagos activadas.\n\nRecibirás notificaciones sobre pagos una vez que se envíen desde el pool."
+
+PayoutsNotificationsDisabled = "Notificaciones de pagos desactivadas"
+
+BlocksNotificationsEnabled = "Notificaciones de bloques activadas.\n\nRecibirás notificaciones sobre bloques una vez que se confirmen. Solo funciona para minería solo."
+
+BlocksNotificationsDisabled = "Notificaciones de bloques desactivadas"
+
+SettingsLanguageButton = "🌍 Idioma"
+
+BackButton = "⬅️ Atrás"
+
+SelectBlockchain = "Selecciona blockchain"
+
+SelectWallet = "Selecciona una billetera"
+
+ChooseSetting = "Elige una configuración"
+
+ChooseLanguage = "Elige tu idioma"
+
+LanguageChanged = "Idioma cambiado"
+
+ReturningToMenu = "Volviendo al menú"
+
+ReturningToSettingsMenu = "Volviendo al menú de configuración"
+
+UserHasNoWallets = "Aún no has agregado ninguna billetera 😟\n\nAgrega al menos una billetera y podré mostrarte estadísticas de balance y workers."
+
+UserHasNoActiveWorkers = "No hay workers activos"
+
+EnterWallet = "Ingresa una billetera.\n\nEjemplo:\n{{.ExampleWallet}}"
+
+InvalidWallet = "Formato de billetera incorrecto. Inténtalo de nuevo."
+
+ExceededWalletsLimit = "Se ha superado el límite de billeteras"
+
+WalletAlreadyAdded = "Ya has agregado esta billetera"
+
+WalletAdded = "Billetera agregada exitosamente 🎉\n\nAhora puedes consultar tu balance y estadísticas de workers. También te notificaré si un worker está fuera de línea durante más de {{.CheckWorkersInterval}} minutos."
+
+WalletRemoved = "Billetera eliminada exitosamente"
+
+WalletInfo = "Billetera: <b>{{.Wallet}}</b>\nPool: <b>{{.PoolBlockchainName}}</b>"
+
+WalletBalance = "Balance: <b>{{.Balance}} {{.Ticker}}</b>"
+
+WalletLeftForPayment = "Restante para el pago: {{.Balance}} / {{.MinPayout}} {{.Ticker}}"
+
+WorkerInfoShort = "Región: <b>{{.Region}}</b>\nSolo: <b>{{.Solo}}</b>\nConectado: <b>{{.ConnectedAt}}</b>"
+
+WorkerInfo = "Worker: <b>{{.Worker}}</b>\nRegión: <b>{{.Region}}</b>\nSolo: <b>{{.Solo}}</b>\nHashrate: <b>{{.Hashrate}}</b>\nTiempo activo: <b>{{.Uptime}}</b>"
+
+PoolStatsMainInfo = "Pool: <b>{{.PoolBlockchainName}}</b>\nAlgoritmos: <b>{{.Algos}}</b>\nModo de pago: <b>{{.PayoutMode}}</b>\nSoporte de minería solo: <b>{{.Solo}}</b>"
+
+PoolStatsFeeInfo = "Comisión del pool: <b>{{.Fee}}%</b>"
+
+PoolStatsSoloFeeInfo = "Comisión solo: <b>{{.Fee}}%</b>"
+
+PoolStatsMiningInfoCaption = "<b>Estadísticas de minería</b>"
+
+PoolStatsSoloMiningInfoCaption = "<b>Estadísticas de minería solo</b>"
+
+PoolStatsMiningInfo = "Cantidad de mineros: <b>{{.MinersCount}}</b>\nHashrate actual: <b>{{.Hashrate}}</b>\nHashrate promedio: <b>{{.AvgHashrate}}</b>"
+
+UserFeedbackSent = "¡Gracias por tu comentario!\nHe enviado tu mensaje a los desarrolladores. Lo revisarán 🙏🏻\n\n¿Necesitas ayuda humana? Únete a nuestro chat: {{.PoolChatLink}}"
+
+WorkerActive = "✨ ¡Worker <b>{{.Worker}}</b> está activo de nuevo!"
+
+WorkerInactive = "❗️ Worker <b>{{.Worker}}</b> no está activo"
+
+NewPayoutReceived = "💰 ¡Nuevo pago recibido!"
+
+PayoutInfo = "Monto: <b>{{.Amount}} {{.Ticker}}</b>\nTx hash: {{.TxHash}}\nPagado: {{.PaidAt}}"
+
+NewBlockFound = "🤑 ¡Nuevo bloque encontrado!"
+
+SoloPayoutInfo = "Recompensa: <b>{{.Reward}} {{.Ticker}}</b>\nHash del bloque: {{.BlockHash}}\nTx hash: {{.TxHash}}\nPagado: {{.PaidAt}}"
+
+CommandStartDescription = "🚀 Iniciar el bot"
+
+CommandFAQDescription = "❓ Preguntas frecuentes"
+
+CommandReportBugDescription = "⚠️ Reportar un error"
+
+Yes = "Sí"
+
+No = "No"
+
+[Day]
+one = "{{.Count}} día"
+other = "{{.Count}} días"
+
+[Hour]
+one = "{{.Count}} hora"
+other = "{{.Count}} horas"
+
+[Minute]
+one = "{{.Count}} minuto"
+other = "{{.Count}} minutos"

@@ -6,9 +6,9 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	poolMinersProto "github.com/grandminingpool/pool-api-proto/generated/pool_miners"
+	pool_miners_proto "github.com/grandminingpool/pool-api-proto/generated/pool_miners"
 	"github.com/grandminingpool/telegram-bot/internal/blockchains"
-	botKeyboards "github.com/grandminingpool/telegram-bot/internal/bot/keyboards"
+	bot_keyboards "github.com/grandminingpool/telegram-bot/internal/bot/keyboards"
 	"github.com/grandminingpool/telegram-bot/internal/bot/middlewares"
 	"github.com/grandminingpool/telegram-bot/internal/bot/services"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -23,7 +23,7 @@ type AddWalletHandler struct {
 	walletsLimitPerUser  int
 }
 
-func (h *AddWalletHandler) Handler(ctx context.Context, user *middlewares.User, startKeyboard *botKeyboards.StartKeyboard, b *bot.Bot, update *models.Update) {
+func (h *AddWalletHandler) Handler(ctx context.Context, user *middlewares.User, startKeyboard *bot_keyboards.StartKeyboard, b *bot.Bot, update *models.Update) {
 	if user.Action != nil {
 		coin := *user.Action.Payload
 		blockchain, err := h.blockchainsService.GetInfo(coin)
@@ -49,8 +49,8 @@ func (h *AddWalletHandler) Handler(ctx context.Context, user *middlewares.User, 
 		}
 
 		wallet := update.Message.Text
-		client := poolMinersProto.NewPoolMinersServiceClient(conn)
-		response, err := client.ValidateAddress(ctx, &poolMinersProto.MinerAddressRequest{
+		client := pool_miners_proto.NewPoolMinersServiceClient(conn)
+		response, err := client.ValidateAddress(ctx, &pool_miners_proto.MinerAddressRequest{
 			Address: wallet,
 		})
 		if err != nil {
@@ -66,7 +66,8 @@ func (h *AddWalletHandler) Handler(ctx context.Context, user *middlewares.User, 
 
 		if !response.Valid {
 			b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: update.Message.Chat.ID,
+				ChatID:    update.Message.Chat.ID,
+
 				Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
 					MessageID: "InvalidWallet",
 				}),
@@ -85,7 +86,8 @@ func (h *AddWalletHandler) Handler(ctx context.Context, user *middlewares.User, 
 
 			if walletsCount+1 > h.walletsLimitPerUser {
 				b.SendMessage(ctx, &bot.SendMessageParams{
-					ChatID: update.Message.Chat.ID,
+					ChatID:    update.Message.Chat.ID,
+	
 					Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
 						MessageID: "ExceededWalletsLimit",
 					}),
@@ -108,11 +110,12 @@ func (h *AddWalletHandler) Handler(ctx context.Context, user *middlewares.User, 
 
 			if hasDuplicates {
 				b.SendMessage(ctx, &bot.SendMessageParams{
-					ChatID: update.Message.Chat.ID,
+					ChatID:    update.Message.Chat.ID,
+	
 					Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
 						MessageID: "WalletAlreadyAdded",
 					}),
-					ReplyMarkup: botKeyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
+					ReplyMarkup: bot_keyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
 				})
 
 				return
@@ -139,14 +142,15 @@ func (h *AddWalletHandler) Handler(ctx context.Context, user *middlewares.User, 
 			}
 
 			b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: update.Message.Chat.ID,
+				ChatID:    update.Message.Chat.ID,
+
 				Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
 					MessageID: "WalletAdded",
 					TemplateData: map[string]string{
 						"CheckWorkersInterval": fmt.Sprintf("%d", h.checkWorkersInterval),
 					},
 				}),
-				ReplyMarkup: botKeyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
+				ReplyMarkup: bot_keyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
 			})
 		}
 	}
@@ -157,11 +161,13 @@ func NewAddWalletHandler(
 	userWalletService *services.UserWalletService,
 	blockchainsService *blockchains.Service,
 	checkWorkersInterval int,
+	walletsLimitPerUser int,
 ) *AddWalletHandler {
 	return &AddWalletHandler{
 		userActionService:    userActionService,
 		userWalletService:    userWalletService,
 		blockchainsService:   blockchainsService,
 		checkWorkersInterval: checkWorkersInterval,
+		walletsLimitPerUser:  walletsLimitPerUser,
 	}
 }

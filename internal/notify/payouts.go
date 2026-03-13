@@ -1,21 +1,23 @@
-package botNotify
+package bot_notify
 
 import (
 	"bytes"
 	"context"
-	"database/sql"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/go-telegram/bot"
-	poolPayoutsProto "github.com/grandminingpool/pool-api-proto/generated/pool_payouts"
-	filtersProto "github.com/grandminingpool/pool-api-proto/generated/utils/filters"
-	botConfig "github.com/grandminingpool/telegram-bot/configs/bot"
+	"github.com/go-telegram/bot/models"
+	pool_payouts_proto "github.com/grandminingpool/pool-api-proto/generated/pool_payouts"
+	filters_proto "github.com/grandminingpool/pool-api-proto/generated/utils/filters"
+	bot_config "github.com/grandminingpool/telegram-bot/configs/bot"
 	"github.com/grandminingpool/telegram-bot/internal/blockchains"
 	"github.com/grandminingpool/telegram-bot/internal/common/languages"
-	formatUtils "github.com/grandminingpool/telegram-bot/internal/utils/format"
-	"github.com/jmoiron/sqlx"
+	format_utils "github.com/grandminingpool/telegram-bot/internal/utils/format"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -52,14 +54,14 @@ type UserWalletSoloPayouts struct {
 type PoolPayouts struct {
 	groupNum int
 	coin     string
-	payouts  map[string]*poolPayoutsProto.Payouts
+	payouts  map[string]*pool_payouts_proto.Payouts
 	err      error
 }
 
 type PoolSoloPayouts struct {
 	groupNum int
 	coin     string
-	payouts  map[string]*poolPayoutsProto.MinedSoloBlocks
+	payouts  map[string]*pool_payouts_proto.MinedSoloBlocks
 	err      error
 }
 
@@ -71,25 +73,25 @@ type UserWallet struct {
 }
 
 type PoolPayoutsRequests struct {
-	client      poolPayoutsProto.PoolPayoutsServiceClient
+	client      pool_payouts_proto.PoolPayoutsServiceClient
 	wallets     [][]string
 	soloWallets [][]string
 }
 
 type Payouts struct {
-	pgConn             *sqlx.DB
+	pgConn             *pgxpool.Pool
 	blockchainsService *blockchains.Service
 	languages          *languages.Languages
 	b                  *bot.Bot
-	config             *botConfig.NotifyConfig
+	config             *bot_config.NotifyConfig
 }
 
 func (p *Payouts) getLastExecutionTime(ctx context.Context) (*time.Time, error) {
 	var lastExecutionTime time.Time
-	err := p.pgConn.GetContext(ctx, &lastExecutionTime, `SELECT 
-		executed_at FROM payouts_notifications 
-	ORDER BY executed_at DESC LIMIT 1`)
-	if err == sql.ErrNoRows {
+	err := p.pgConn.QueryRow(ctx, `SELECT
+		executed_at FROM payouts_notifications
+	ORDER BY executed_at DESC LIMIT 1`).Scan(&lastExecutionTime)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to query last payouts notification executed time: %w", err)
@@ -99,7 +101,7 @@ func (p *Payouts) getLastExecutionTime(ctx context.Context) (*time.Time, error) 
 }
 
 func (p *Payouts) addNotification(ctx context.Context) error {
-	if _, err := p.pgConn.ExecContext(ctx, "INSERT INTO payouts_notifications (executed_at) VALUES (NOW())"); err != nil {
+	if _, err := p.pgConn.Exec(ctx, "INSERT INTO payouts_notifications (executed_at) VALUES (NOW())"); err != nil {
 		return fmt.Errorf("failed to create new payouts notification: %w", err)
 	}
 
@@ -108,7 +110,7 @@ func (p *Payouts) addNotification(ctx context.Context) error {
 
 func (p *Payouts) getWalletsMap(ctx context.Context) (map[string]map[string]*UserWallet, error) {
 	walletsMap := make(map[string]map[string]*UserWallet)
-	rows, err := p.pgConn.QueryContext(ctx, `SELECT
+	rows, err := p.pgConn.Query(ctx, `SELECT
 		user_wallets.user_id,
 		users.chat_id,
 		users.lang,
@@ -117,12 +119,13 @@ func (p *Payouts) getWalletsMap(ctx context.Context) (map[string]map[string]*Use
 		user_wallets.blockchain_coin,
 		user_wallets.id,
 		user_wallets.wallet
-	FROM wallet_workers
-	LEFT JOIN users ON users.id = wallet_workers.user_id
+	FROM user_wallets
+	LEFT JOIN users ON users.id = user_wallets.user_id
 	WHERE users.blocks_notify = true OR users.payouts_notify = true`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query wallets for payouts notifications: %w", err)
 	}
+	defer rows.Close()
 
 	for rows.Next() {
 		var (
@@ -174,40 +177,35 @@ func (w *Payouts) getPoolRequestsMap(walletsMap map[string]map[string]*UserWalle
 			return nil, 0, 0, err
 		}
 
-		client := poolPayoutsProto.NewPoolPayoutsServiceClient(conn)
+		client := pool_payouts_proto.NewPoolPayoutsServiceClient(conn)
 		poolRequests := &PoolPayoutsRequests{
 			client:      client,
-			wallets:     [][]string{},
-			soloWallets: [][]string{},
+			wallets:     [][]string{{}},
+			soloWallets: [][]string{{}},
 		}
 
 		groupNum, soloGroupNum := 0, 0
 		requestsCount++
 		soloRequestsCount++
-		i, j := 0, 0
 		for wallet, userWallet := range coinWalletsMap {
-			if i > w.config.MaxWalletsInPayoutsRequest {
-				groupNum++
-				requestsCount++
-				i = 0
-			}
-
-			if j > w.config.MaxWalletsInWorkersRequest {
-				soloGroupNum++
-				soloRequestsCount++
-				j = 0
-			}
-
 			if userWallet.payouts {
-				poolRequests.wallets[groupNum][i] = wallet
+				if len(poolRequests.wallets[groupNum]) >= w.config.MaxWalletsInPayoutsRequest {
+					groupNum++
+					requestsCount++
+					poolRequests.wallets = append(poolRequests.wallets, []string{})
+				}
 
-				i++
+				poolRequests.wallets[groupNum] = append(poolRequests.wallets[groupNum], wallet)
 			}
 
 			if userWallet.blocks {
-				poolRequests.soloWallets[soloGroupNum][j] = wallet
+				if len(poolRequests.soloWallets[soloGroupNum]) >= w.config.MaxWalletsInWorkersRequest {
+					soloGroupNum++
+					soloRequestsCount++
+					poolRequests.soloWallets = append(poolRequests.soloWallets, []string{})
+				}
 
-				j++
+				poolRequests.soloWallets[soloGroupNum] = append(poolRequests.soloWallets[soloGroupNum], wallet)
 			}
 		}
 
@@ -219,7 +217,7 @@ func (w *Payouts) getPoolRequestsMap(walletsMap map[string]map[string]*UserWalle
 
 func (p *Payouts) getSoloPayouts(
 	ctx context.Context,
-	client poolPayoutsProto.PoolPayoutsServiceClient,
+	client pool_payouts_proto.PoolPayoutsServiceClient,
 	coin string,
 	groupNum int,
 	wallets []string,
@@ -237,10 +235,10 @@ func (p *Payouts) getSoloPayouts(
 			err:      nil,
 		}
 
-		soloPayouts, err := client.GetSoloBlocksFromList(ctx, &poolPayoutsProto.GetSoloBlocksFromListRequest{
+		soloPayouts, err := client.GetSoloBlocksFromList(ctx, &pool_payouts_proto.GetSoloBlocksFromListRequest{
 			Miners: wallets,
-			Filters: &poolPayoutsProto.MinedSoloBlocksFilters{
-				MinedAt: &filtersProto.DateTimeRangeFilter{
+			Filters: &pool_payouts_proto.MinedSoloBlocksFilters{
+				MinedAt: &filters_proto.DateTimeRangeFilter{
 					Start: timestamppb.New(paidFrom),
 				},
 			},
@@ -257,7 +255,7 @@ func (p *Payouts) getSoloPayouts(
 
 func (p *Payouts) getPayouts(
 	ctx context.Context,
-	client poolPayoutsProto.PoolPayoutsServiceClient,
+	client pool_payouts_proto.PoolPayoutsServiceClient,
 	coin string,
 	groupNum int,
 	wallets []string,
@@ -275,10 +273,10 @@ func (p *Payouts) getPayouts(
 			err:      nil,
 		}
 
-		payouts, err := client.GetPayoutsFromList(ctx, &poolPayoutsProto.GetPayoutsFromListRequest{
+		payouts, err := client.GetPayoutsFromList(ctx, &pool_payouts_proto.GetPayoutsFromListRequest{
 			Miners: wallets,
-			Filters: &poolPayoutsProto.PayoutsFilters{
-				PaidAt: &filtersProto.DateTimeRangeFilter{
+			Filters: &pool_payouts_proto.PayoutsFilters{
+				PaidAt: &filters_proto.DateTimeRangeFilter{
 					Start: timestamppb.New(paidFrom),
 				},
 			},
@@ -323,7 +321,7 @@ func (p *Payouts) notifyUsersPayments(
 				msgBuf.WriteString(userLocalizer.MustLocalize(&i18n.LocalizeConfig{
 					MessageID: "PayoutInfo",
 					TemplateData: map[string]string{
-						"Amount": formatUtils.WalletBalance(userPayoutInfo.amount, userWalletPayouts.walletInfo.blockchain.AtomicUnit),
+						"Amount": format_utils.WalletBalance(userPayoutInfo.amount, userWalletPayouts.walletInfo.blockchain.AtomicUnit),
 						"Ticker": userWalletPayouts.walletInfo.blockchain.Ticker,
 						"TxHash": userPayoutInfo.txHash,
 						"PaidAt": userPayoutInfo.paidAt.Format(time.RFC3339),
@@ -331,8 +329,9 @@ func (p *Payouts) notifyUsersPayments(
 				}))
 
 				p.b.SendMessage(ctx, &bot.SendMessageParams{
-					ChatID: userWalletPayouts.userInfo.chatID,
-					Text:   msgBuf.String(),
+					ChatID:    userWalletPayouts.userInfo.chatID,
+					ParseMode: models.ParseModeHTML,
+					Text:      msgBuf.String(),
 				})
 
 				msgBuf.Reset()
@@ -371,7 +370,7 @@ func (p *Payouts) notifyUsersSoloPayments(
 				msgBuf.WriteString(userLocalizer.MustLocalize(&i18n.LocalizeConfig{
 					MessageID: "SoloPayoutInfo",
 					TemplateData: map[string]string{
-						"Reward":    formatUtils.WalletBalance(userSoloPayoutInfo.reward, userWalletSoloPayouts.walletInfo.blockchain.AtomicUnit),
+						"Reward":    format_utils.WalletBalance(userSoloPayoutInfo.reward, userWalletSoloPayouts.walletInfo.blockchain.AtomicUnit),
 						"Ticker":    userWalletSoloPayouts.walletInfo.blockchain.Ticker,
 						"BlockHash": userSoloPayoutInfo.blockHash,
 						"TxHash":    userSoloPayoutInfo.txHash,
@@ -380,8 +379,9 @@ func (p *Payouts) notifyUsersSoloPayments(
 				}))
 
 				p.b.SendMessage(ctx, &bot.SendMessageParams{
-					ChatID: userWalletSoloPayouts.userInfo.chatID,
-					Text:   msgBuf.String(),
+					ChatID:    userWalletSoloPayouts.userInfo.chatID,
+					ParseMode: models.ParseModeHTML,
+					Text:      msgBuf.String(),
 				})
 
 				msgBuf.Reset()
@@ -391,6 +391,8 @@ func (p *Payouts) notifyUsersSoloPayments(
 }
 
 func (p *Payouts) Check(ctx context.Context) {
+	zap.L().Debug("payouts check started")
+
 	lastExecutionTime, err := p.getLastExecutionTime(ctx)
 	if err != nil {
 		zap.L().Error("failed to get last payments notification executed time", zap.Error(err))
@@ -399,12 +401,16 @@ func (p *Payouts) Check(ctx context.Context) {
 	}
 
 	if lastExecutionTime == nil {
+		zap.L().Debug("payouts check: first run, initializing notification timestamp")
+
 		if err := p.addNotification(ctx); err != nil {
 			zap.L().Error("failed to add first payments notification to db", zap.Error(err))
 		}
 
 		return
 	}
+
+	zap.L().Debug("payouts check: last execution time", zap.Time("last_execution", *lastExecutionTime))
 
 	walletsMap, err := p.getWalletsMap(ctx)
 	defer clear(walletsMap)
@@ -414,6 +420,8 @@ func (p *Payouts) Check(ctx context.Context) {
 		return
 	}
 
+	zap.L().Debug("payouts check: loaded wallets map", zap.Int("coins_count", len(walletsMap)))
+
 	poolRequestsMap, requestsCount, soloRequestsCount, err := p.getPoolRequestsMap(walletsMap)
 	defer clear(poolRequestsMap)
 	if err != nil {
@@ -421,6 +429,11 @@ func (p *Payouts) Check(ctx context.Context) {
 
 		return
 	}
+
+	zap.L().Debug("payouts check: pool requests prepared",
+		zap.Int("payout_requests", requestsCount),
+		zap.Int("solo_requests", soloRequestsCount),
+	)
 
 	poolPayoutsCh := make(chan PoolPayouts, requestsCount)
 	poolSoloPayoutsCh := make(chan PoolSoloPayouts, soloRequestsCount)
@@ -495,7 +508,7 @@ func (p *Payouts) Check(ctx context.Context) {
 						walletInfo := WalletInfo{
 							id:         userWallet.id,
 							wallet:     wallet,
-							blockchain: blockchain,
+							blockchain: &blockchain,
 						}
 						userWalletPayouts := make([]*PayoutInfo, 0, len(walletPayouts.Payouts))
 						for _, walletPayout := range walletPayouts.Payouts {
@@ -507,11 +520,11 @@ func (p *Payouts) Check(ctx context.Context) {
 						}
 
 						userPayoutsMap, ok := payoutsMap[*userWallet.userInfo]
-						if ok {
-							userPayoutsMap[walletInfo] = userWalletPayouts
-						} else {
-							payoutsMap[*userWallet.userInfo][walletInfo] = userWalletPayouts
+						if !ok {
+							userPayoutsMap = make(map[WalletInfo][]*PayoutInfo)
+							payoutsMap[*userWallet.userInfo] = userPayoutsMap
 						}
+						userPayoutsMap[walletInfo] = userWalletPayouts
 					}
 				}
 			}
@@ -545,7 +558,7 @@ func (p *Payouts) Check(ctx context.Context) {
 						walletInfo := WalletInfo{
 							id:         userWallet.id,
 							wallet:     wallet,
-							blockchain: blockchain,
+							blockchain: &blockchain,
 						}
 						userWalletSoloPayouts := make([]*SoloPayoutInfo, 0, len(walletSoloPayouts.Blocks))
 						for _, walletSoloPayout := range walletSoloPayouts.Blocks {
@@ -558,63 +571,75 @@ func (p *Payouts) Check(ctx context.Context) {
 						}
 
 						userSoloPayoutsMap, ok := soloPayoutsMap[*userWallet.userInfo]
-						if ok {
-							userSoloPayoutsMap[walletInfo] = userWalletSoloPayouts
-						} else {
-							soloPayoutsMap[*userWallet.userInfo][walletInfo] = userWalletSoloPayouts
+						if !ok {
+							userSoloPayoutsMap = make(map[WalletInfo][]*SoloPayoutInfo)
+							soloPayoutsMap[*userWallet.userInfo] = userSoloPayoutsMap
 						}
+						userSoloPayoutsMap[walletInfo] = userWalletSoloPayouts
 					}
 				}
 			}
-		default:
 		}
 	}
 
-	usersWalletsPayoutsGroups := [][]*UserWalletPayouts{}
-	usersWalletsSoloPayoutsGroups := [][]*UserWalletSoloPayouts{}
+	totalPayouts, totalSoloPayouts := 0, 0
+	for _, userPayoutsMap := range payoutsMap {
+		for _, payouts := range userPayoutsMap {
+			totalPayouts += len(payouts)
+		}
+	}
+	for _, userSoloPayoutsMap := range soloPayoutsMap {
+		for _, soloPayouts := range userSoloPayoutsMap {
+			totalSoloPayouts += len(soloPayouts)
+		}
+	}
+
+	zap.L().Debug("payouts check: changes detected",
+		zap.Int("payouts", totalPayouts),
+		zap.Int("solo_payouts", totalSoloPayouts),
+		zap.Int("users_with_payouts", len(payoutsMap)),
+		zap.Int("users_with_solo_payouts", len(soloPayoutsMap)),
+	)
+
+	usersWalletsPayoutsGroups := [][]*UserWalletPayouts{{}}
+	usersWalletsSoloPayoutsGroups := [][]*UserWalletSoloPayouts{{}}
 	defer func() {
 		usersWalletsPayoutsGroups, usersWalletsSoloPayoutsGroups = nil, nil
 	}()
 	groupNum := 0
-	i := 0
 
 	for userInfo, userPayoutsMap := range payoutsMap {
-		if groupNum > p.config.ParallelNotificationsCount {
+		if len(usersWalletsPayoutsGroups[groupNum]) >= p.config.ParallelNotificationsCount {
 			groupNum++
-			i = 0
+			usersWalletsPayoutsGroups = append(usersWalletsPayoutsGroups, []*UserWalletPayouts{})
 		}
 
 		for walletInfo, userWalletPayouts := range userPayoutsMap {
-			usersWalletsPayoutsGroups[groupNum][i] = &UserWalletPayouts{
+			usersWalletsPayoutsGroups[groupNum] = append(usersWalletsPayoutsGroups[groupNum], &UserWalletPayouts{
 				UserPayouts: UserPayouts{
 					userInfo:   &userInfo,
 					walletInfo: &walletInfo,
 				},
 				payouts: userWalletPayouts,
-			}
-
-			i++
+			})
 		}
 	}
 
 	soloGroupNum := 0
-	j := 0
 	for userInfo, userSoloPayoutsMap := range soloPayoutsMap {
-		if groupNum > p.config.ParallelNotificationsCount {
+		if len(usersWalletsSoloPayoutsGroups[soloGroupNum]) >= p.config.ParallelNotificationsCount {
 			soloGroupNum++
-			j = 0
+			usersWalletsSoloPayoutsGroups = append(usersWalletsSoloPayoutsGroups, []*UserWalletSoloPayouts{})
 		}
 
 		for walletInfo, userWalletSoloPayouts := range userSoloPayoutsMap {
-			usersWalletsSoloPayoutsGroups[groupNum][j] = &UserWalletSoloPayouts{
+			usersWalletsSoloPayoutsGroups[soloGroupNum] = append(usersWalletsSoloPayoutsGroups[soloGroupNum], &UserWalletSoloPayouts{
 				UserPayouts: UserPayouts{
 					userInfo:   &userInfo,
 					walletInfo: &walletInfo,
 				},
 				payouts: userWalletSoloPayouts,
-			}
-
-			j++
+			})
 		}
 	}
 
@@ -634,4 +659,9 @@ func (p *Payouts) Check(ctx context.Context) {
 	if err := p.addNotification(ctx); err != nil {
 		zap.L().Error("failed to add payments notification to db", zap.Error(err))
 	}
+
+	zap.L().Debug("payouts check completed",
+		zap.Int("payouts_notified", totalPayouts),
+		zap.Int("solo_payouts_notified", totalSoloPayouts),
+	)
 }

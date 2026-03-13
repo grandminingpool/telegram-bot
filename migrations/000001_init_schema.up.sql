@@ -4,21 +4,20 @@ CREATE TABLE IF NOT EXISTS blockchains (
     ticker VARCHAR(16) NOT NULL,
     atomic_unit SMALLINT NOT NULL,
     example_wallet VARCHAR(256) NOT NULL,
-    pool_api_url VARCHAR(64) NOT NULL,
-    pool_api_tls_ca VARCHAR(64) NOT NULL,
-    pool_api_server_name VARCHAR(128) NOT NULL
+    pool_api_uri VARCHAR(64) NOT NULL,
+    pool_api_tls_ca VARCHAR(64) NOT NULL
 );
 
 ALTER TABLE blockchains ADD CONSTRAINT blockchains_unique_name UNIQUE (name);
 ALTER TABLE blockchains ADD CONSTRAINT blockchains_unique_ticker UNIQUE (ticker);
-ALTER TABLE blockchains ADD CONSTRAINT blockchains_unique_pool_api_url UNIQUE (pool_api_url);
+ALTER TABLE blockchains ADD CONSTRAINT blockchains_unique_pool_api_uri UNIQUE (pool_api_uri);
 
 CREATE TABLE IF NOT EXISTS users (
     id BIGINT NOT NULL PRIMARY KEY,
     chat_id BIGINT NOT NULL,
     lang VARCHAR(16) NOT NULL,
     payouts_notify BOOLEAN NOT NULL DEFAULT true,
-    block_notify BOOLEAN NOT NULL DEFAULT true
+    blocks_notify BOOLEAN NOT NULL DEFAULT true
 );
 
 ALTER TABLE users ADD CONSTRAINT users_unique_chat_id UNIQUE (chat_id);
@@ -28,6 +27,8 @@ CREATE TABLE IF NOT EXISTS user_actions (
     action VARCHAR(128) NOT NULL,
     payload TEXT
 );
+
+ALTER TABLE user_actions ADD CONSTRAINT user_actions_user_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
 CREATE TABLE IF NOT EXISTS user_wallets (
     id BIGINT NOT NULL PRIMARY KEY,
@@ -63,16 +64,6 @@ CREATE TABLE IF NOT EXISTS wallet_workers (
 );
 
 ALTER TABLE wallet_workers ADD CONSTRAINT wallet_workers_wallet_fkey FOREIGN KEY (wallet_id) REFERENCES user_wallets(id) ON UPDATE CASCADE ON DELETE CASCADE;
-ALTER TABLE wallet_workers ADD CONSTRAINT wallet_workers_unique_worker UNIQUE (wallet_id, worker);
-
-CREATE TABLE IF NOT EXISTS user_feedback (
-    user_id BIGINT NOT NULL,
-    first_name VARCHAR(255),
-    last_name VARCHAR(255),
-    username VARCHAR(32),
-    report_message TEXT NOT NULL,
-    added_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
 
 CREATE TABLE IF NOT EXISTS payouts_notifications (
     id BIGINT NOT NULL PRIMARY KEY,

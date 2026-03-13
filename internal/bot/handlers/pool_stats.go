@@ -9,11 +9,11 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	poolProto "github.com/grandminingpool/pool-api-proto/generated/pool"
+	pool_proto "github.com/grandminingpool/pool-api-proto/generated/pool"
 	"github.com/grandminingpool/telegram-bot/internal/blockchains"
-	botKeyboards "github.com/grandminingpool/telegram-bot/internal/bot/keyboards"
+	bot_keyboards "github.com/grandminingpool/telegram-bot/internal/bot/keyboards"
 	"github.com/grandminingpool/telegram-bot/internal/bot/middlewares"
-	formatUtils "github.com/grandminingpool/telegram-bot/internal/utils/format"
+	format_utils "github.com/grandminingpool/telegram-bot/internal/utils/format"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -26,7 +26,7 @@ type PoolStatsHandler struct {
 func (h *PoolStatsHandler) Back(
 	ctx context.Context,
 	user *middlewares.User,
-	startKeyboard *botKeyboards.StartKeyboard,
+	startKeyboard *bot_keyboards.StartKeyboard,
 	b *bot.Bot,
 	update *models.Update,
 ) {
@@ -35,14 +35,14 @@ func (h *PoolStatsHandler) Back(
 		Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: "ReturningToMenu",
 		}),
-		ReplyMarkup: botKeyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
+		ReplyMarkup: bot_keyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
 	})
 }
 
 func (h *PoolStatsHandler) OnBlockchainSelected(
 	ctx context.Context,
 	user *middlewares.User,
-	startKeyboard *botKeyboards.StartKeyboard,
+	startKeyboard *bot_keyboards.StartKeyboard,
 	blockchain blockchains.BlockchainInfo,
 	b *bot.Bot,
 	update *models.Update,
@@ -58,7 +58,7 @@ func (h *PoolStatsHandler) OnBlockchainSelected(
 		return
 	}
 
-	client := poolProto.NewPoolServiceClient(conn)
+	client := pool_proto.NewPoolServiceClient(conn)
 	poolInfo, err := client.GetPoolInfo(ctx, &emptypb.Empty{})
 	if err != nil {
 		zap.L().Error("get blockchain pool info error",
@@ -70,7 +70,7 @@ func (h *PoolStatsHandler) OnBlockchainSelected(
 		return
 	}
 
-	poolStats, err := client.GetPoolStats(ctx, &emptypb.Empty{})
+	poolStats, err := client.GetPoolStats(ctx, &pool_proto.GetPoolAssetRequest{Solo: false})
 	if err != nil {
 		zap.L().Error("get blockchain pool stats error",
 			zap.Int64("user_id", user.ID),
@@ -88,7 +88,7 @@ func (h *PoolStatsHandler) OnBlockchainSelected(
 			"PoolBlockchainName": blockchain.Name,
 			"Algos":              strings.Join(poolInfo.Algos, ", "),
 			"PayoutMode":         poolInfo.PayoutMode.String(),
-			"Solo":               formatUtils.BoolText(poolInfo.Solo, user.Localizer),
+			"Solo":               format_utils.BoolText(poolInfo.Solo, user.Localizer),
 		},
 	}))
 	msgBuf.WriteString("\n\n")
@@ -118,31 +118,41 @@ func (h *PoolStatsHandler) OnBlockchainSelected(
 		MessageID: "PoolStatsMiningInfo",
 		TemplateData: map[string]string{
 			"MinersCount":   fmt.Sprintf("%d", poolStats.MinersCount),
-			"TotalHashrate": formatUtils.Hashrate(new(big.Int).SetBytes(poolStats.Hashrate)),
-			"AvgHashrate":   formatUtils.Hashrate(new(big.Int).SetBytes(poolStats.AvgHashrate)),
+			"Hashrate": format_utils.Hashrate(new(big.Int).SetBytes(poolStats.Hashrate), blockchain.Coin),
+			"AvgHashrate":   format_utils.Hashrate(new(big.Int).SetBytes(poolStats.AvgHashrate), blockchain.Coin),
 		},
 	}))
 
-	if poolInfo.Solo && poolStats.SoloMinersCount != nil && poolStats.SoloHashrate != nil && poolStats.SoloAvgHashrate != nil {
-		msgBuf.WriteString("\n\n")
-		msgBuf.WriteString(user.Localizer.MustLocalize(&i18n.LocalizeConfig{
-			MessageID: "PoolStatsSoloMiningInfoCaption",
-		}))
-		msgBuf.WriteString("\n")
-		msgBuf.WriteString(user.Localizer.MustLocalize(&i18n.LocalizeConfig{
-			MessageID: "PoolStatsMiningInfo",
-			TemplateData: map[string]string{
-				"MinersCount":   fmt.Sprintf("%d", *poolStats.SoloMinersCount),
-				"TotalHashrate": formatUtils.Hashrate(new(big.Int).SetBytes(poolStats.SoloHashrate)),
-				"AvgHashrate":   formatUtils.Hashrate(new(big.Int).SetBytes(poolStats.SoloAvgHashrate)),
-			},
-		}))
+	if poolInfo.Solo {
+		soloPoolStats, err := client.GetPoolStats(ctx, &pool_proto.GetPoolAssetRequest{Solo: true})
+		if err != nil {
+			zap.L().Warn("get blockchain solo pool stats error",
+				zap.Int64("user_id", user.ID),
+				zap.String("coin", blockchain.Coin),
+				zap.Error(err),
+			)
+		} else {
+			msgBuf.WriteString("\n\n")
+			msgBuf.WriteString(user.Localizer.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: "PoolStatsSoloMiningInfoCaption",
+			}))
+			msgBuf.WriteString("\n")
+			msgBuf.WriteString(user.Localizer.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: "PoolStatsMiningInfo",
+				TemplateData: map[string]string{
+					"MinersCount":   fmt.Sprintf("%d", soloPoolStats.MinersCount),
+					"Hashrate": format_utils.Hashrate(new(big.Int).SetBytes(soloPoolStats.Hashrate), blockchain.Coin),
+					"AvgHashrate":   format_utils.Hashrate(new(big.Int).SetBytes(soloPoolStats.AvgHashrate), blockchain.Coin),
+				},
+			}))
+		}
 	}
 
 	b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      update.Message.Chat.ID,
+		ParseMode:   models.ParseModeHTML,
 		Text:        msgBuf.String(),
-		ReplyMarkup: botKeyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
+		ReplyMarkup: bot_keyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
 	})
 }
 

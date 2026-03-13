@@ -2,11 +2,12 @@ package services
 
 import (
 	"context"
-	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/go-telegram/bot/models"
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/text/language"
 )
 
@@ -19,11 +20,11 @@ type UserDB struct {
 }
 
 type UserService struct {
-	pgConn *sqlx.DB
+	pgConn *pgxpool.Pool
 }
 
 func (s *UserService) SetPayoutsNotify(ctx context.Context, id int64, value bool) error {
-	if _, err := s.pgConn.ExecContext(ctx, "UPDATE users SET payouts_notify = $1 WHERE user_id = $2", value, id); err != nil {
+	if _, err := s.pgConn.Exec(ctx, "UPDATE users SET payouts_notify = $1 WHERE id = $2", value, id); err != nil {
 		return fmt.Errorf("failed to update user (id: %d) payouts notify: %w", id, err)
 	}
 
@@ -31,7 +32,7 @@ func (s *UserService) SetPayoutsNotify(ctx context.Context, id int64, value bool
 }
 
 func (s *UserService) SetBlocksNotify(ctx context.Context, id int64, value bool) error {
-	if _, err := s.pgConn.ExecContext(ctx, "UPDATE users SET blocks_notify = $1 WHERE user_id = $2", value, id); err != nil {
+	if _, err := s.pgConn.Exec(ctx, "UPDATE users SET blocks_notify = $1 WHERE id = $2", value, id); err != nil {
 		return fmt.Errorf("failed to update user (id: %d) blocks notify: %w", id, err)
 	}
 
@@ -39,7 +40,7 @@ func (s *UserService) SetBlocksNotify(ctx context.Context, id int64, value bool)
 }
 
 func (s *UserService) SetLang(ctx context.Context, id int64, languageTag language.Tag) error {
-	if _, err := s.pgConn.ExecContext(ctx, "UPDATE users SET lang = $1 WHERE user_id = $2", languageTag.String(), id); err != nil {
+	if _, err := s.pgConn.Exec(ctx, "UPDATE users SET lang = $1 WHERE id = $2", languageTag.String(), id); err != nil {
 		return fmt.Errorf("failed to update user (id: %d) lang: %w", id, err)
 	}
 
@@ -48,8 +49,9 @@ func (s *UserService) SetLang(ctx context.Context, id int64, languageTag languag
 
 func (s *UserService) Find(ctx context.Context, id int64) (*UserDB, error) {
 	var user UserDB
-	err := s.pgConn.SelectContext(ctx, &user, "SELECT * FROM users WHERE id = ?", id)
-	if err == sql.ErrNoRows {
+	err := s.pgConn.QueryRow(ctx, "SELECT id, chat_id, lang, payouts_notify, blocks_notify FROM users WHERE id = $1", id).
+		Scan(&user.ID, &user.ChatID, &user.Lang, &user.PayoutsNotify, &user.BlocksNotify)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to find user (id: %d), error: %w", id, err)
@@ -73,13 +75,13 @@ func (s *UserService) Init(ctx context.Context, botUser *models.User, chatID int
 			BlocksNotify:  true,
 		}
 
-		if _, err := s.pgConn.ExecContext(ctx, `INSERT INTO users (
-			id, 
+		if _, err := s.pgConn.Exec(ctx, `INSERT INTO users (
+			id,
 			chat_id,
-			lang, 
-			payouts_notify, 
+			lang,
+			payouts_notify,
 			blocks_notify
-		) VALUES (?, ?, ?, ?)`,
+		) VALUES ($1, $2, $3, $4, $5)`,
 			user.ID,
 			user.ChatID,
 			user.Lang,
@@ -90,7 +92,7 @@ func (s *UserService) Init(ctx context.Context, botUser *models.User, chatID int
 		}
 	} else if user.ChatID != chatID {
 		user.ChatID = chatID
-		_, err := s.pgConn.ExecContext(ctx, `UPDATE users SET user_id = $1 WHERE id = $2`, user.ID, chatID)
+		_, err := s.pgConn.Exec(ctx, `UPDATE users SET chat_id = $1 WHERE id = $2`, chatID, user.ID)
 		if err != nil {
 			return user, fmt.Errorf("failed to update user (id: %d) chat id (new value: %d), error: %w", user.ID, chatID, err)
 		}
@@ -99,7 +101,7 @@ func (s *UserService) Init(ctx context.Context, botUser *models.User, chatID int
 	return user, nil
 }
 
-func NewUserService(pgConn *sqlx.DB) *UserService {
+func NewUserService(pgConn *pgxpool.Pool) *UserService {
 	return &UserService{
 		pgConn: pgConn,
 	}

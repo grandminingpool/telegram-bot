@@ -1,6 +1,6 @@
 package flags
 
-const APP_MODE_FLAG = "mode"
+const AppModeFlag = "mode"
 
 type AppMode string
 
@@ -17,3 +17,4 @@ func checkAppMode(newMode string) AppMode {
 		return AppModeDev
 	}
 }
+

@@ -6,7 +6,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/grandminingpool/telegram-bot/internal/blockchains"
-	botKeyboards "github.com/grandminingpool/telegram-bot/internal/bot/keyboards"
+	bot_keyboards "github.com/grandminingpool/telegram-bot/internal/bot/keyboards"
 	"github.com/grandminingpool/telegram-bot/internal/bot/middlewares"
 	"github.com/grandminingpool/telegram-bot/internal/bot/services"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -15,12 +15,13 @@ import (
 
 type EnterWalletHandler struct {
 	userActionService *services.UserActionService
+	blockchainsInfo   []blockchains.BlockchainInfo
 }
 
 func (h *EnterWalletHandler) Back(
 	ctx context.Context,
 	user *middlewares.User,
-	startKeyboard *botKeyboards.StartKeyboard,
+	startKeyboard *bot_keyboards.StartKeyboard,
 	b *bot.Bot,
 	update *models.Update,
 ) {
@@ -29,19 +30,18 @@ func (h *EnterWalletHandler) Back(
 		Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: "ReturningToMenu",
 		}),
-		ReplyMarkup: botKeyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
+		ReplyMarkup: bot_keyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
 	})
 }
 
 func (h *EnterWalletHandler) BackToBlockchainSelect(
 	ctx context.Context,
 	user *middlewares.User,
-	addWalletKeyboard *botKeyboards.BlockchainsKeyboard,
 	b *bot.Bot,
 	update *models.Update,
 ) {
-	if err := h.userActionService.Clear(ctx, user.ID); err != nil {
-		zap.L().Error("error clearing user action before returning to add wallet select blockchains menu",
+	if err := h.userActionService.Set(ctx, user.ID, services.UserAddWalletSelectBlockchainAction, nil); err != nil {
+		zap.L().Error("set user select blockchain add wallet action error",
 			zap.Int64("user_id", user.ID),
 			zap.Error(err),
 		)
@@ -54,7 +54,7 @@ func (h *EnterWalletHandler) BackToBlockchainSelect(
 		Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: "SelectBlockchain",
 		}),
-		ReplyMarkup: botKeyboards.CreateBlockchainsReplyKeyboard(b, addWalletKeyboard, user.Localizer),
+		ReplyMarkup: bot_keyboards.CreateBlockchainsReplyKeyboard(h.blockchainsInfo, user.Localizer),
 	})
 }
 
@@ -82,12 +82,13 @@ func (h *EnterWalletHandler) Handler(
 				"ExampleWallet": blockchain.ExampleWallet,
 			},
 		}),
-		ReplyMarkup: botKeyboards.CreateBackReplyKeyboard(b, botKeyboards.WithBlockchainsKeyboardHandler(h.BackToBlockchainSelect, botKeyboards.ADD_WALLET_KEYBOARD_CTX_KEY), user.Localizer),
+		ReplyMarkup: bot_keyboards.CreateBackReplyKeyboard(user.Localizer),
 	})
 }
 
-func NewEnterWalletHandler(userActionService *services.UserActionService) *EnterWalletHandler {
+func NewEnterWalletHandler(userActionService *services.UserActionService, blockchainsInfo []blockchains.BlockchainInfo) *EnterWalletHandler {
 	return &EnterWalletHandler{
 		userActionService: userActionService,
+		blockchainsInfo:   blockchainsInfo,
 	}
 }

@@ -1,36 +1,52 @@
-package formatUtils
+package format
 
 import (
 	"fmt"
+	"math"
 	"math/big"
 )
 
+const defaultHashrateUnit = "H/s"
+
 var (
-	HashrateUnits          = []string{"kH/s", "MH/s", "GH/s", "TH/s", "PH/s", "EH/s"}
-	HashrateUnitStep int64 = 1000
+	hashratePrefixes = []string{"k", "M", "G", "T", "P", "E"}
+	hashrateUnits    = map[string]string{
+		"zcash": "Sol/s",
+	}
 )
 
+func HashrateUnit(coin string) string {
+	if unit, ok := hashrateUnits[coin]; ok {
+		return unit
+	}
+
+	return defaultHashrateUnit
+}
+
 func WalletBalance(balance uint64, atomicUnit uint16) string {
-	balanceFormatted := float64(balance) / float64(atomicUnit)
+	balanceFormatted := float64(balance) / math.Pow(10, float64(atomicUnit))
 
 	return fmt.Sprintf("%.2f", balanceFormatted)
 }
 
-func Hashrate(hashrate *big.Int) string {
-	c := big.NewInt(1)
-	i := 0
+func Hashrate(hashrate *big.Int, coin string) string {
+	unit := HashrateUnit(coin)
 
-	for idx := range HashrateUnits {
-		c.Mul(c, big.NewInt(HashrateUnitStep))
+	if hashrate.Sign() == 0 {
+		return fmt.Sprintf("0.00 %s", unit)
+	}
 
-		if hashrate.Cmp(c) == -1 {
-			i = idx
+	step := big.NewFloat(1000)
+	h := new(big.Float).SetInt(hashrate)
+
+	for _, prefix := range hashratePrefixes {
+		h.Quo(h, step)
+		if h.Cmp(step) < 0 {
+			hf, _ := h.Float64()
+			return fmt.Sprintf("%.2f %s%s", hf, prefix, unit)
 		}
 	}
 
-	h := *hashrate
-	h.Div(hashrate, c)
 	hf, _ := h.Float64()
-
-	return fmt.Sprintf("%.2f %s", hf, HashrateUnits[i])
+	return fmt.Sprintf("%.2f %s%s", hf, hashratePrefixes[len(hashratePrefixes)-1], unit)
 }

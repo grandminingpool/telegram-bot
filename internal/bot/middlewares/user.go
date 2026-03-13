@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const USER_CTX_KEY types.CtxKey = "botUser"
+const userCtxKey types.CtxKey = "botUser"
 
 type UserSettings struct {
 	PayoutsNotify bool
@@ -43,7 +43,7 @@ type UserMiddleware struct {
 
 func (m *UserMiddleware) Middleware(next bot.HandlerFunc) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
-		if update.Message != nil {
+		if update.Message != nil && update.Message.Chat.Type == models.ChatTypePrivate {
 			user, err := m.userService.Init(ctx, update.Message.From, update.Message.Chat.ID)
 			if err != nil {
 				zap.L().Error("init user error",
@@ -84,7 +84,7 @@ func (m *UserMiddleware) Middleware(next bot.HandlerFunc) bot.HandlerFunc {
 				}
 			}
 
-			newCtx := context.WithValue(ctx, USER_CTX_KEY, userCtx)
+			newCtx := context.WithValue(ctx, userCtxKey, userCtx)
 
 			next(newCtx, b, update)
 		} else {
@@ -107,7 +107,7 @@ func CreateUserMiddleware(
 
 func WithUserHandler(handler UserHandlerFunc) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
-		user, ok := ctx.Value(USER_CTX_KEY).(*User)
+		user, ok := ctx.Value(userCtxKey).(*User)
 		if ok {
 			handler(ctx, user, b, update)
 		}

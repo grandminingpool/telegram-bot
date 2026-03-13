@@ -1,0 +1,135 @@
+Language = "🇷🇺 Русский"
+
+BotDescription = "Привет!\n\nЯ бот для мониторинга майнинга на Grand Pool. Помогу отслеживать процесс майнинга, выплаты, покажу статистику пула и пришлю увдомление, когда ваши устройства простаивают."
+
+DefaultMessage = "Выберите команду из меню бота"
+
+FAQMessage = "<b>Как начать?</b>\nДобавьте кошелёк, который вы используете для майнинга на Grand Pool ({{.PoolURL}}), через меню «Добавить кошелёк». После этого вы сможете проверять баланс в разделе «Кошельки» и подробную статистику воркеров в разделе «Воркеры».\n\n<b>Уведомления</b>\nБот отправит вам уведомление в следующих случаях:\n1. Один из ваших воркеров простаивает более ~{{.CheckWorkersInterval}} минут;\n2. Получена новая выплата от пула;\n3. Ваши воркеры нашли новый блок.\n\nЧто-то не работает или есть вопросы? Присоединяйтесь к нашему чату: {{.PoolChatLink}}"
+
+ReportBugMessage = "Расскажите, что произошло?"
+
+AddWalletButton = "➕ Добавить кошелёк"
+
+RemoveWalletButton = "➖ Удалить кошелёк"
+
+WalletsButton = "💰 Кошельки"
+
+WorkersButton = "🔨 Воркеры"
+
+PoolStatsButton = "📈 Статистика пула"
+
+SettingsButton = "⚙️ Настройки"
+
+SettingsEnablePayoutsNotifyButton = "🔔 Включить уведомления о выплатах"
+
+SettingsDisablePayoutsNotifyButton = "🔕 Отключить уведомления о выплатах"
+
+SettingsEnableBlocksNotifyButton = "🔔 Включить уведомления о блоках"
+
+SettingsDisableBlocksNotifyButton = "🔕 Отключить уведомления о блоках"
+
+PayoutsNotificationsEnabled = "Уведомления о выплатах включены.\n\nВы будете получать уведомления о выплатах после их отправки с пула."
+
+PayoutsNotificationsDisabled = "Уведомления о выплатах отключены"
+
+BlocksNotificationsEnabled = "Уведомления о блоках включены.\n\nВы будете получать уведомления о блоках после их подтверждения. Работает только для соло."
+
+BlocksNotificationsDisabled = "Уведомления о блоках отключены"
+
+SettingsLanguageButton = "🌍 Язык"
+
+BackButton = "⬅️ Назад"
+
+SelectBlockchain = "Выберите блокчейн"
+
+SelectWallet = "Выберите кошелёк"
+
+ChooseSetting = "Выберите настройку"
+
+ChooseLanguage = "Выберите язык"
+
+LanguageChanged = "Язык изменён"
+
+ReturningToMenu = "Возвращаемся в меню"
+
+ReturningToSettingsMenu = "Возвращаемся в меню настроек"
+
+UserHasNoWallets = "Вы ещё не добавили ни одного кошелька 😟\n\nДобавьте хотя бы один кошелёк, и я смогу показать статистику баланса и воркеров."
+
+UserHasNoActiveWorkers = "Нет активных воркеров"
+
+EnterWallet = "Введите адрес кошелька.\n\nПример:\n{{.ExampleWallet}}"
+
+InvalidWallet = "Неверный формат кошелька. Попробуйте ещё раз."
+
+ExceededWalletsLimit = "Превышен лимит количества кошельков"
+
+WalletAlreadyAdded = "Вы уже добавили этот кошелёк"
+
+WalletAdded = "Кошелёк успешно добавлен 🎉\n\nТеперь вы можете проверять баланс и статистику воркеров. Также я уведомлю вас, если воркер будет офлайн более {{.CheckWorkersInterval}} минут."
+
+WalletRemoved = "Кошелёк успешно удалён"
+
+WalletInfo = "Кошелёк: <b>{{.Wallet}}</b>\nПул: <b>{{.PoolBlockchainName}}</b>"
+
+WalletBalance = "Баланс: <b>{{.Balance}} {{.Ticker}}</b>"
+
+WalletLeftForPayment = "До выплаты: {{.Balance}} / {{.MinPayout}} {{.Ticker}}"
+
+WorkerInfoShort = "Регион: <b>{{.Region}}</b>\nСоло: <b>{{.Solo}}</b>\nПодключён: <b>{{.ConnectedAt}}</b>"
+
+WorkerInfo = "Воркер: <b>{{.Worker}}</b>\nРегион: <b>{{.Region}}</b>\nСоло: <b>{{.Solo}}</b>\nХешрейт: <b>{{.Hashrate}}</b>\nАптайм: <b>{{.Uptime}}</b>"
+
+PoolStatsMainInfo = "Пул: <b>{{.PoolBlockchainName}}</b>\nАлгоритмы: <b>{{.Algos}}</b>\nРежим выплат: <b>{{.PayoutMode}}</b>\nПоддержка соло: <b>{{.Solo}}</b>"
+
+PoolStatsFeeInfo = "Комиссия пула: <b>{{.Fee}}%</b>"
+
+PoolStatsSoloFeeInfo = "Комиссия соло: <b>{{.Fee}}%</b>"
+
+PoolStatsMiningInfoCaption = "<b>Статистика майнинга</b>"
+
+PoolStatsSoloMiningInfoCaption = "<b>Статистика соло-майнинга</b>"
+
+PoolStatsMiningInfo = "Количество майнеров: <b>{{.MinersCount}}</b>\nТекущий хешрейт: <b>{{.Hashrate}}</b>\nСредний хешрейт: <b>{{.AvgHashrate}}</b>"
+
+UserFeedbackSent = "Спасибо за ваш отзыв!\nЯ отправил ваше сообщение разработчикам. Они разберутся 🙏🏻\n\nНужна помощь живого человека? Присоединяйтесь к нашему чату: {{.PoolChatLink}}"
+
+WorkerActive = "✨ Воркер <b>{{.Worker}}</b> снова активен!"
+
+WorkerInactive = "❗️ Воркер <b>{{.Worker}}</b> неактивен"
+
+NewPayoutReceived = "💰 Получена новая выплата!"
+
+PayoutInfo = "Сумма: <b>{{.Amount}} {{.Ticker}}</b>\nTx хеш: {{.TxHash}}\nВыплачено: {{.PaidAt}}"
+
+NewBlockFound = "🤑 Найден новый блок!"
+
+SoloPayoutInfo = "Награда: <b>{{.Reward}} {{.Ticker}}</b>\nХеш блока: {{.BlockHash}}\nTx хеш: {{.TxHash}}\nВыплачено: {{.PaidAt}}"
+
+CommandStartDescription = "🚀 Запустить бота"
+
+CommandFAQDescription = "❓ Часто задаваемые вопросы"
+
+CommandReportBugDescription = "⚠️ Сообщить об ошибке"
+
+Yes = "Да"
+
+No = "Нет"
+
+[Day]
+one = "{{.Count}} день"
+few = "{{.Count}} дня"
+many = "{{.Count}} дней"
+other = "{{.Count}} дней"
+
+[Hour]
+one = "{{.Count}} час"
+few = "{{.Count}} часа"
+many = "{{.Count}} часов"
+other = "{{.Count}} часов"
+
+[Minute]
+one = "{{.Count}} минута"
+few = "{{.Count}} минуты"
+many = "{{.Count}} минут"
+other = "{{.Count}} минут"

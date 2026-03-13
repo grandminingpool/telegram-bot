@@ -5,18 +5,24 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	botKeyboards "github.com/grandminingpool/telegram-bot/internal/bot/keyboards"
+	bot_keyboards "github.com/grandminingpool/telegram-bot/internal/bot/keyboards"
 	"github.com/grandminingpool/telegram-bot/internal/bot/middlewares"
+	"github.com/grandminingpool/telegram-bot/internal/bot/services"
 	"github.com/grandminingpool/telegram-bot/internal/common/constants"
 	"github.com/grandminingpool/telegram-bot/internal/common/languages"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 type DefaultHandler struct {
-	languages *languages.Languages
+	languages         *languages.Languages
+	userActionService *services.UserActionService
 }
 
-func (h *DefaultHandler) Handler(ctx context.Context, user *middlewares.User, startKeyboard *botKeyboards.StartKeyboard, b *bot.Bot, update *models.Update) {
+func (h *DefaultHandler) Handler(ctx context.Context, user *middlewares.User, startKeyboard *bot_keyboards.StartKeyboard, b *bot.Bot, update *models.Update) {
+	if user.Action != nil {
+		h.userActionService.Clear(ctx, user.ID)
+	}
+
 	b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: update.Message.Chat.ID,
 		Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
@@ -25,7 +31,7 @@ func (h *DefaultHandler) Handler(ctx context.Context, user *middlewares.User, st
 				"Command": string(constants.StartCommand),
 			},
 		}),
-		ReplyMarkup: botKeyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
+		ReplyMarkup: bot_keyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
 	})
 
 	b.SetChatMenuButton(ctx, &bot.SetChatMenuButtonParams{
@@ -36,8 +42,9 @@ func (h *DefaultHandler) Handler(ctx context.Context, user *middlewares.User, st
 	})
 }
 
-func NewDefaultHandler(languages *languages.Languages) *DefaultHandler {
+func NewDefaultHandler(languages *languages.Languages, userActionService *services.UserActionService) *DefaultHandler {
 	return &DefaultHandler{
-		languages: languages,
+		languages:         languages,
+		userActionService: userActionService,
 	}
 }

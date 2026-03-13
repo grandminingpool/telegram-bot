@@ -1,4 +1,4 @@
-package botKeyboards
+package keyboards
 
 import (
 	"bytes"
@@ -7,38 +7,45 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/go-telegram/ui/keyboard/reply"
+	"github.com/grandminingpool/telegram-bot/internal/blockchains"
 	"github.com/grandminingpool/telegram-bot/internal/bot/middlewares"
 	"github.com/grandminingpool/telegram-bot/internal/bot/services"
 	"github.com/grandminingpool/telegram-bot/internal/common/types"
-	formatUtils "github.com/grandminingpool/telegram-bot/internal/utils/format"
+	format_utils "github.com/grandminingpool/telegram-bot/internal/utils/format"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"go.uber.org/zap"
 )
 
 const (
-	START_KEYBOARD_PREFIX               = "start"
-	START_KEYBOARD_CTX_KEY types.CtxKey = "startKeyboard"
+	startKeyboardPrefix               = "start"
+	StartKeyboardCtxKey types.CtxKey = "startKeyboard"
 )
 
 type StartKeyboardHandlerFunc func(context.Context, *middlewares.User, *StartKeyboard, *bot.Bot, *models.Update)
 
 type StartKeyboard struct {
-	userService                 *services.UserService
-	userWalletService           *services.UserWalletService
-	addWalletKeyboard           *BlockchainsKeyboard
-	poolStatsKeyboard           *BlockchainsKeyboard
-	languagesKeyboard           *LanguagesKeyboard
-	onRemoveWalletSelectHandler OnBlockchainSelectedHandlerFunc
-	onRemoveWalletBackHandler   middlewares.UserHandlerFunc
+	userService       *services.UserService
+	userWalletService *services.UserWalletService
+	userActionService *services.UserActionService
+	blockchainsInfo   []blockchains.BlockchainInfo
 }
 
 func (k *StartKeyboard) AddWallet(ctx context.Context, user *middlewares.User, b *bot.Bot, update *models.Update) {
+	if err := k.userActionService.Set(ctx, user.ID, services.UserAddWalletSelectBlockchainAction, nil); err != nil {
+		zap.L().Error("set user select blockchain add wallet action error",
+			zap.Int64("user_id", user.ID),
+			zap.Error(err),
+		)
+
+		return
+	}
+
 	b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: update.Message.Chat.ID,
 		Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: "SelectBlockchain",
 		}),
-		ReplyMarkup: CreateBlockchainsReplyKeyboard(b, k.addWalletKeyboard, user.Localizer),
+		ReplyMarkup: CreateBlockchainsReplyKeyboard(k.blockchainsInfo, user.Localizer),
 	})
 }
 
@@ -61,20 +68,21 @@ func (k *StartKeyboard) RemoveWallet(ctx context.Context, user *middlewares.User
 			}),
 		})
 	} else {
-		userRemoveWalletKeyboard := &BlockchainsKeyboard{
-			blockchains:     userBlockchains,
-			onSelectHandler: k.onRemoveWalletSelectHandler,
-			onBackHandler:   k.onRemoveWalletBackHandler,
+		if err := k.userActionService.Set(ctx, user.ID, services.UserRemoveWalletAction, nil); err != nil {
+			zap.L().Error("set user select blockchain remove wallet action error",
+				zap.Int64("user_id", user.ID),
+				zap.Error(err),
+			)
+
+			return
 		}
 
-		newCtx := context.WithValue(ctx, REMOVE_WALLET_KEYBOARD_CTX_KEY, userRemoveWalletKeyboard)
-
-		b.SendMessage(newCtx, &bot.SendMessageParams{
+		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: update.Message.Chat.ID,
 			Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
 				MessageID: "SelectBlockchain",
 			}),
-			ReplyMarkup: CreateBlockchainsReplyKeyboard(b, userRemoveWalletKeyboard, user.Localizer),
+			ReplyMarkup: CreateBlockchainsReplyKeyboard(userBlockchains, user.Localizer),
 		})
 	}
 }
@@ -108,7 +116,7 @@ func (k *StartKeyboard) ShowWallets(ctx context.Context, user *middlewares.User,
 				},
 			}))
 			msgBuf.WriteString("\n\n")
-			balanceText := formatUtils.WalletBalance(wallet.Balance, wallet.Pool.Blockchain.AtomicUnit)
+			balanceText := format_utils.WalletBalance(wallet.Balance, wallet.Pool.Blockchain.AtomicUnit)
 			msgBuf.WriteString(user.Localizer.MustLocalize(&i18n.LocalizeConfig{
 				MessageID: "WalletBalance",
 				TemplateData: map[string]string{
@@ -118,20 +126,22 @@ func (k *StartKeyboard) ShowWallets(ctx context.Context, user *middlewares.User,
 			}))
 
 			if wallet.Pool.MinPayout != nil {
-				minPayoutText := formatUtils.WalletBalance(*wallet.Pool.MinPayout, wallet.Pool.Blockchain.AtomicUnit)
+				minPayoutText := format_utils.WalletBalance(*wallet.Pool.MinPayout, wallet.Pool.Blockchain.AtomicUnit)
 				msgBuf.WriteString("\n\n")
 				msgBuf.WriteString(user.Localizer.MustLocalize(&i18n.LocalizeConfig{
 					MessageID: "WalletLeftForPayment",
 					TemplateData: map[string]string{
 						"Balance":   balanceText,
 						"MinPayout": minPayoutText,
+						"Ticker":    wallet.Pool.Blockchain.Ticker,
 					},
 				}))
 			}
 
 			b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: update.Message.Chat.ID,
-				Text:   msgBuf.String(),
+				ChatID:    update.Message.Chat.ID,
+				ParseMode: models.ParseModeHTML,
+				Text:      msgBuf.String(),
 			})
 
 			msgBuf.Reset()
@@ -173,15 +183,16 @@ func (k *StartKeyboard) ShowWorkers(ctx context.Context, user *middlewares.User,
 				TemplateData: map[string]string{
 					"Region":   worker.Region,
 					"Worker":   worker.Worker,
-					"Solo":     formatUtils.BoolText(worker.Solo, user.Localizer),
-					"Hashrate": formatUtils.Hashrate(worker.Hashrate),
-					"Uptime":   formatUtils.UptimeText(worker.ConnectedAt, user.Localizer),
+					"Solo":     format_utils.BoolText(worker.Solo, user.Localizer),
+					"Hashrate": format_utils.Hashrate(worker.Hashrate, worker.Pool.Blockchain.Coin),
+					"Uptime":   format_utils.UptimeText(worker.ConnectedAt, user.Localizer),
 				},
 			}))
 
 			b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: update.Message.Chat.ID,
-				Text:   msgBuf.String(),
+				ChatID:    update.Message.Chat.ID,
+				ParseMode: models.ParseModeHTML,
+				Text:      msgBuf.String(),
 			})
 
 			msgBuf.Reset()
@@ -190,57 +201,59 @@ func (k *StartKeyboard) ShowWorkers(ctx context.Context, user *middlewares.User,
 }
 
 func (k *StartKeyboard) ShowPoolStatistics(ctx context.Context, user *middlewares.User, b *bot.Bot, update *models.Update) {
+	if err := k.userActionService.Set(ctx, user.ID, services.ShowPoolStatsAction, nil); err != nil {
+		zap.L().Error("set user select blockchain pool stats action error",
+			zap.Int64("user_id", user.ID),
+			zap.Error(err),
+		)
+
+		return
+	}
+
 	b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: update.Message.Chat.ID,
 		Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: "SelectBlockchain",
 		}),
-		ReplyMarkup: CreateBlockchainsReplyKeyboard(b, k.poolStatsKeyboard, user.Localizer),
+		ReplyMarkup: CreateBlockchainsReplyKeyboard(k.blockchainsInfo, user.Localizer),
 	})
 }
 
 func (k *StartKeyboard) ShowSettings(ctx context.Context, user *middlewares.User, b *bot.Bot, update *models.Update) {
-	userSettingsKeyboard := &SettingsKeyboard{
-		userService:       k.userService,
-		startKeyboard:     k,
-		languagesKeyboard: k.languagesKeyboard,
-		payoutsNotify:     user.Settings.PayoutsNotify,
-		blocksNotify:      user.Settings.BlocksNotify,
+	if err := k.userActionService.Set(ctx, user.ID, services.UserSettingsAction, nil); err != nil {
+		zap.L().Error("set user settings action error",
+			zap.Int64("user_id", user.ID),
+			zap.Error(err),
+		)
+
+		return
 	}
 
-	newCtx := context.WithValue(ctx, SETTINGS_KEYBOARD_CTX_KEY, userSettingsKeyboard)
-
-	b.SendMessage(newCtx, &bot.SendMessageParams{
+	b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: update.Message.Chat.ID,
 		Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: "ChooseSetting",
 		}),
-		ReplyMarkup: CreateSettingsReplyKeyboard(b, userSettingsKeyboard, user.Localizer),
+		ReplyMarkup: CreateSettingsReplyKeyboard(user.Settings.PayoutsNotify, user.Settings.BlocksNotify, user.Localizer),
 	})
 }
 
 func CreateStartKeyboard(
 	userService *services.UserService,
 	userWalletService *services.UserWalletService,
-	addWalletKeyboard *BlockchainsKeyboard,
-	poolStatsKeyboard *BlockchainsKeyboard,
-	languagesKeyboard *LanguagesKeyboard,
-	onRemoveWalletSelectHandler OnBlockchainSelectedHandlerFunc,
-	onRemoveWalletBackHandler middlewares.UserHandlerFunc,
+	userActionService *services.UserActionService,
+	blockchainsInfo []blockchains.BlockchainInfo,
 ) *StartKeyboard {
 	return &StartKeyboard{
-		userService:                 userService,
-		userWalletService:           userWalletService,
-		addWalletKeyboard:           addWalletKeyboard,
-		poolStatsKeyboard:           poolStatsKeyboard,
-		languagesKeyboard:           languagesKeyboard,
-		onRemoveWalletSelectHandler: onRemoveWalletSelectHandler,
-		onRemoveWalletBackHandler:   onRemoveWalletBackHandler,
+		userService:       userService,
+		userWalletService: userWalletService,
+		userActionService: userActionService,
+		blockchainsInfo:   blockchainsInfo,
 	}
 }
 
 func CreateStartReplyKeyboard(b *bot.Bot, startKeyboard *StartKeyboard, localizer *i18n.Localizer) *reply.ReplyKeyboard {
-	return reply.New(b, reply.IsSelective(), reply.WithPrefix(START_KEYBOARD_PREFIX)).
+	return reply.New(reply.ResizableKeyboard(), reply.WithPrefix(startKeyboardPrefix)).
 		Row().
 		Button(localizer.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: "AddWalletButton",
@@ -266,7 +279,7 @@ func CreateStartReplyKeyboard(b *bot.Bot, startKeyboard *StartKeyboard, localize
 
 func WithStartKeyboardHandler(handler StartKeyboardHandlerFunc) middlewares.UserHandlerFunc {
 	return func(ctx context.Context, user *middlewares.User, b *bot.Bot, update *models.Update) {
-		startKeyboard, ok := ctx.Value(START_KEYBOARD_CTX_KEY).(*StartKeyboard)
+		startKeyboard, ok := ctx.Value(StartKeyboardCtxKey).(*StartKeyboard)
 		if ok {
 			handler(ctx, user, startKeyboard, b, update)
 		}

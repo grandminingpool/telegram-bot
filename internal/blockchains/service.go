@@ -2,18 +2,16 @@ package blockchains
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
-	poolAPIClient "github.com/grandminingpool/telegram-bot/internal/clients/pool_api"
-	"github.com/jmoiron/sqlx"
+	pool_api_client "github.com/grandminingpool/telegram-bot/internal/clients/pool_api"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
 )
 
 type PoolAPIDB struct {
-	URL        string `db:"pool_api_url"`
-	TLSCA      string `db:"pool_api_tls_ca"`
-	ServerName string `db:"pool_api_server_name"`
+	URI   string `db:"pool_api_uri"`
+	TLSCA string `db:"pool_api_tls_ca"`
 }
 
 type BlockchainDB struct {
@@ -26,7 +24,6 @@ type BlockchainDB struct {
 }
 
 type BlockchainInfo struct {
-	ID            int16
 	Coin          string
 	Name          string
 	Ticker        string
@@ -40,14 +37,24 @@ type Blockchain struct {
 }
 
 type Service struct {
-	pgConn      *sqlx.DB
+	pgConn      *pgxpool.Pool
 	blockchains map[string]Blockchain
 }
 
 func (s *Service) getBlockchainsFromDB(ctx context.Context) ([]BlockchainDB, error) {
-	blockchains := []BlockchainDB{}
-	if err := s.pgConn.SelectContext(ctx, &blockchains, "SELECT * FROM blockchains"); err != nil && err != sql.ErrNoRows {
+	rows, err := s.pgConn.Query(ctx, "SELECT coin, name, ticker, atomic_unit, example_wallet, pool_api_uri, pool_api_tls_ca FROM blockchains")
+	if err != nil {
 		return nil, fmt.Errorf("failed to query blockchains: %w", err)
+	}
+	defer rows.Close()
+
+	blockchains := []BlockchainDB{}
+	for rows.Next() {
+		var b BlockchainDB
+		if err := rows.Scan(&b.Coin, &b.Name, &b.Ticker, &b.AtomicUnit, &b.ExampleWallet, &b.PoolAPIDB.URI, &b.PoolAPIDB.TLSCA); err != nil {
+			return nil, fmt.Errorf("failed to scan blockchain row: %w", err)
+		}
+		blockchains = append(blockchains, b)
 	}
 
 	return blockchains, nil
@@ -63,19 +70,19 @@ func (s *Service) GetBlockchainsInfo() []BlockchainInfo {
 	return blockchains
 }
 
-func (s *Service) GetInfo(coin string) (*BlockchainInfo, error) {
+func (s *Service) GetInfo(coin string) (BlockchainInfo, error) {
 	blockchain, ok := s.blockchains[coin]
 	if !ok {
-		return nil, fmt.Errorf("failed to get blockchain (coin: %s) info: not found", coin)
+		return BlockchainInfo{}, fmt.Errorf("failed to get blockchain (coin: %s) info: not found", coin)
 	}
 
-	return blockchain.info, nil
+	return *blockchain.info, nil
 }
 
 func (s *Service) GetConnection(coin string) (*grpc.ClientConn, error) {
 	blockchain, ok := s.blockchains[coin]
 	if !ok {
-		return nil, fmt.Errorf("failed to get blockchain (coin: %s) poll connection: not found", coin)
+		return nil, fmt.Errorf("failed to get blockchain (coin: %s) pool connection: not found", coin)
 	}
 
 	return blockchain.conn, nil
@@ -88,7 +95,7 @@ func (s *Service) Start(ctx context.Context, certsPath string) error {
 	}
 
 	for _, b := range blockchains {
-		conn, err := poolAPIClient.NewClient(b.PoolAPIDB.URL, certsPath, b.PoolAPIDB.TLSCA, b.PoolAPIDB.ServerName)
+		conn, err := pool_api_client.NewClient(b.PoolAPIDB.URI, certsPath, b.PoolAPIDB.TLSCA)
 		if err != nil {
 			s.Close()
 
@@ -118,7 +125,7 @@ func (s *Service) Close() {
 	clear(s.blockchains)
 }
 
-func NewService(pgConn *sqlx.DB) *Service {
+func NewService(pgConn *pgxpool.Pool) *Service {
 	return &Service{
 		pgConn:      pgConn,
 		blockchains: make(map[string]Blockchain),

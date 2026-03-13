@@ -4,13 +4,13 @@ BotDescription = "Hello!\n\nI'm a Grand Pool mining monitoring bot. I'll help yo
 
 DefaultMessage = "Select command from pool bot menu"
 
-FAQMessage = "**How to start?**\nAdd a new wallet that you are using for mining on any Grand Pool ({{.PoolURL}}) via \"Add wallet\" menu. After that you will be able to check your balance statistics in \"Wallets\" and detailed workers statistics in \"Workers\".\n\n**Notifications**\nBot will send you a notification in the following cases:\n1. One of your workers is idle for ~{{.CheckWorkersInterval}} minutes;\n2. A new payout received from the pool;\n3. Your workers found a new block.\n\nSomething works wrong or you have any questions? Feel free to message us! @{{.SupportBotUsername}}"
+FAQMessage = "<b>How to start?</b>\nAdd a new wallet that you are using for mining on Grand Pool ({{.PoolURL}}) via \"Add wallet\" menu. After that you will be able to check your balance statistics in \"Wallets\" and detailed workers statistics in \"Workers\".\n\n<b>Notifications</b>\nBot will send you a notification in the following cases:\n1. One of your workers is idle for ~{{.CheckWorkersInterval}} minutes;\n2. A new payout received from the pool;\n3. Your workers found a new block.\n\nSomething works wrong or you have any questions? Feel free to join our chat: {{.PoolChatLink}}"
 
-ReportBugMessage = "Tell us, what's happend?"
+ReportBugMessage = "Tell us, what happened?"
 
 AddWalletButton = "➕ Add wallet"
 
-RemoveWalletButton = "➕ Remove wallet"
+RemoveWalletButton = "➖ Remove wallet"
 
 WalletsButton = "💰 Wallets"
 
@@ -48,6 +48,8 @@ ChooseSetting = "Choose a setting"
 
 ChooseLanguage = "Choose your language"
 
+LanguageChanged = "Language has been changed"
+
 ReturningToMenu = "Returning to the menu"
 
 ReturningToSettingsMenu = "Returning to the settings menu"
@@ -64,58 +66,64 @@ ExceededWalletsLimit = "The limit on the count of wallets has been exceeded"
 
 WalletAlreadyAdded = "You've already added this wallet"
 
-WalletAdded = "Wallet have been successfully added 🎉\n\nNow you can take into your balance and workers statistics. Also I'll notify you, if some worker is offline more than {{.CheckWorkersInterval}} minutes."
+WalletAdded = "Wallet has been successfully added 🎉\n\nNow you can check your balance and workers statistics. Also I'll notify you if a worker is offline for more than {{.CheckWorkersInterval}} minutes."
 
-WalletRemoved = "Wallet have been deleted successfully"
+WalletRemoved = "Wallet has been successfully removed"
 
-WalletInfo = "Wallet: **{{.Wallet}}**\nPool: **{{.PoolBlockchainName}}**"
+WalletInfo = "Wallet: <b>{{.Wallet}}</b>\nPool: <b>{{.PoolBlockchainName}}</b>"
 
-WalletBalance = "Balance: **{{.Balance}} {{.Ticker}}**"
+WalletBalance = "Balance: <b>{{.Balance}} {{.Ticker}}</b>"
 
-WalletLeftForPayment = "Left for payment: {{.Balance}} / {{.MinPayout}} {{.Ticker}}"
+WalletLeftForPayment = "Remaining until payout: {{.Balance}} / {{.MinPayout}} {{.Ticker}}"
 
-WorkerInfoShort = "Region: **{{.Region}}**\nSolo: **{{.Solo}}**\nConnected at: **{{.ConnectedAt}}**"
+WorkerInfoShort = "Region: <b>{{.Region}}</b>\nSolo: <b>{{.Solo}}</b>\nConnected at: <b>{{.ConnectedAt}}</b>"
 
-WorkerInfo = "Worker: **{{.Worker}}**Region: **{{.Region}}**\nSolo: **{{.Solo}}**\nHashrate: {{.Hashrate}}\nUptime: {{.Uptime}}"
+WorkerInfo = "Worker: <b>{{.Worker}}</b>\nRegion: <b>{{.Region}}</b>\nSolo: <b>{{.Solo}}</b>\nHashrate: <b>{{.Hashrate}}</b>\nUptime: <b>{{.Uptime}}</b>"
 
-PoolStatsMainInfo = "Pool: **{{.PoolBlockchainName}}**\nAlgos: **{{.Algos}}**\nPayout mode: **{{.PayoutMode}}**\nSupport solo mining: **{{.Solo}}**"
+PoolStatsMainInfo = "Pool: <b>{{.PoolBlockchainName}}</b>\nAlgos: <b>{{.Algos}}</b>\nPayout mode: <b>{{.PayoutMode}}</b>\nSupport solo mining: <b>{{.Solo}}</b>"
 
-PoolStatsFeeInfo = "Pool fee: **{{.Fee}}%**"
+PoolStatsFeeInfo = "Pool fee: <b>{{.Fee}}%</b>"
 
-PoolStatsSoloFeeInfo = "Solo fee: **{{.Fee}}%**"
+PoolStatsSoloFeeInfo = "Solo fee: <b>{{.Fee}}%</b>"
 
-PoolStatsMiningInfoCaption = "**Mining statistics**"
+PoolStatsMiningInfoCaption = "<b>Mining statistics</b>"
 
-PoolStatsSoloMiningInfoCaption = "**Solo mining statistics**"
+PoolStatsSoloMiningInfoCaption = "<b>Solo mining statistics</b>"
 
-PoolStatsMiningInfo = "Miners count: {{.MinersCount}}\nTotal hashrate: {{.TotalHashrate}}\nAverage hashrate: {{.AvgHashrate}}"
+PoolStatsMiningInfo = "Miners count: <b>{{.MinersCount}}</b>\nCurrent hashrate: <b>{{.Hashrate}}</b>\nAverage hashrate: <b>{{.AvgHashrate}}</b>"
 
-UserFeedbackSent = "Thank you for your feedback!\nI've sent your message to developers. They'll look into it 🙏🏻\n\nNeed real human help? Feel free to message us! @{{.SupportBotUsername}}"
+UserFeedbackSent = "Thank you for your feedback!\nI've sent your message to developers. They'll look into it 🙏🏻\n\nNeed real human help? Feel free to join our chat: {{.PoolChatLink}}"
 
-WorkerActive = "✨ Worker **{{.Worker}}** is active again!"
+WorkerActive = "✨ Worker <b>{{.Worker}}</b> is active again!"
 
-WorkerInactive = "❗️ Worker **{{.Worker}}** is not active"
+WorkerInactive = "❗️ Worker <b>{{.Worker}}</b> is not active"
 
 NewPayoutReceived = "💰 New payout received!"
 
-PayoutInfo = "Amount: **{{.Amount}} {{.Ticker}}**\nTx hash: {{.TxHash}}\nPaid at: {{.PaidAt}}"
+PayoutInfo = "Amount: <b>{{.Amount}} {{.Ticker}}</b>\nTx hash: {{.TxHash}}\nPaid at: {{.PaidAt}}"
 
 NewBlockFound = "🤑 New block found!"
 
-SoloPayoutInfo = "Reward: **{{.Reward}} {{.Ticker}}**\nBlock hash: {{.BlockHash}}\nTx hash: {{.TxHash}}\nPaid at: {{.PaidAt}}"
+SoloPayoutInfo = "Reward: <b>{{.Reward}} {{.Ticker}}</b>\nBlock hash: {{.BlockHash}}\nTx hash: {{.TxHash}}\nPaid at: {{.PaidAt}}"
+
+CommandStartDescription = "🚀 Start the bot"
+
+CommandFAQDescription = "❓ FAQ"
+
+CommandReportBugDescription = "⚠️ Report a bug"
 
 Yes = "Yes"
 
 No = "No"
 
 [Day]
-one = "day"
-other = "days"
+one = "{{.Count}} day"
+other = "{{.Count}} days"
 
 [Hour]
-one = "hour"
-other = "hours"
+one = "{{.Count}} hour"
+other = "{{.Count}} hours"
 
 [Minute]
-one = "minute"
-other = "minutes"
+one = "{{.Count}} minute"
+other = "{{.Count}} minutes"

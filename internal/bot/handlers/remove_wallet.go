@@ -6,7 +6,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/grandminingpool/telegram-bot/internal/blockchains"
-	botKeyboards "github.com/grandminingpool/telegram-bot/internal/bot/keyboards"
+	bot_keyboards "github.com/grandminingpool/telegram-bot/internal/bot/keyboards"
 	"github.com/grandminingpool/telegram-bot/internal/bot/middlewares"
 	"github.com/grandminingpool/telegram-bot/internal/bot/services"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -18,13 +18,14 @@ type RemoveWalletHandler struct {
 	userActionService *services.UserActionService
 }
 
-func (h *RemoveWalletHandler) Back(ctx context.Context, user *middlewares.User, startKeyboard *botKeyboards.StartKeyboard, b *bot.Bot, update *models.Update) {
+func (h *RemoveWalletHandler) Back(ctx context.Context, user *middlewares.User, startKeyboard *bot_keyboards.StartKeyboard, b *bot.Bot, update *models.Update) {
 	b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: update.Message.Chat.ID,
+		ChatID:    update.Message.Chat.ID,
+
 		Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: "ReturningToMenu",
 		}),
-		ReplyMarkup: botKeyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
+		ReplyMarkup: bot_keyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
 	})
 }
 
@@ -39,14 +40,22 @@ func (h *RemoveWalletHandler) BackToBlockchainSelect(ctx context.Context, user *
 		return
 	}
 
-	blockchainsKeyboard := botKeyboards.CreateBlockchainsKeyboard(userBlockchains, h.OnBlockchainSelected, botKeyboards.WithStartKeyboardHandler(h.Back))
+	if err := h.userActionService.Set(ctx, user.ID, services.UserRemoveWalletAction, nil); err != nil {
+		zap.L().Error("set user select blockchain remove wallet action error",
+			zap.Int64("user_id", user.ID),
+			zap.Error(err),
+		)
+
+		return
+	}
 
 	b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: update.Message.Chat.ID,
+		ChatID:    update.Message.Chat.ID,
+
 		Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: "SelectBlockchain",
 		}),
-		ReplyMarkup: botKeyboards.CreateBlockchainsReplyKeyboard(b, blockchainsKeyboard, user.Localizer),
+		ReplyMarkup: bot_keyboards.CreateBlockchainsReplyKeyboard(userBlockchains, user.Localizer),
 	})
 }
 
@@ -68,21 +77,28 @@ func (h *RemoveWalletHandler) OnBlockchainSelected(
 		return
 	}
 
-	userWalletsKeyboard := botKeyboards.CreateWalletsKeyboard(userWallets, botKeyboards.OnWalletSelectedWithStartKeyboardHandler(h.Remove), h.BackToBlockchainSelect)
+	if err := h.userActionService.Set(ctx, user.ID, services.UserRemoveWalletSelectWalletAction, &blockchain.Coin); err != nil {
+		zap.L().Error("set user remove wallet select wallet action error",
+			zap.Int64("user_id", user.ID),
+			zap.Error(err),
+		)
+
+		return
+	}
 
 	b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: update.Message.Chat.ID,
 		Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: "SelectWallet",
 		}),
-		ReplyMarkup: botKeyboards.CreateWalletsReplyKeyboard(b, userWalletsKeyboard, user.Localizer),
+		ReplyMarkup: bot_keyboards.CreateWalletsReplyKeyboard(userWallets, user.Localizer),
 	})
 }
 
 func (h *RemoveWalletHandler) Remove(
 	ctx context.Context,
 	user *middlewares.User,
-	startKeyboard *botKeyboards.StartKeyboard,
+	startKeyboard *bot_keyboards.StartKeyboard,
 	wallet services.UserWalletInfo,
 	b *bot.Bot,
 	update *models.Update,
@@ -97,12 +113,22 @@ func (h *RemoveWalletHandler) Remove(
 		return
 	}
 
+	if err := h.userActionService.Clear(ctx, user.ID); err != nil {
+		zap.L().Error("clear user action after removing wallet error",
+			zap.Int64("user_id", user.ID),
+			zap.Error(err),
+		)
+
+		return
+	}
+
 	b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: update.Message.Chat.ID,
+		ChatID:    update.Message.Chat.ID,
+
 		Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: "WalletRemoved",
 		}),
-		ReplyMarkup: botKeyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
+		ReplyMarkup: bot_keyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
 	})
 }
 

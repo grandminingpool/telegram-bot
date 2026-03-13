@@ -7,61 +7,59 @@ import (
 )
 
 const (
-	CONFIGS_FLAG                  = "configs"
-	CERTS_FLAG                    = "certs"
-	LOGGER_OUTPUT_PATH_FLAG       = "logger-output-path"
-	LOGGER_ERROR_OUTPUT_PATH_FLAG = "logger-error-output-path"
-	LOCALES_PATH_FLAG             = "locales_path"
-	LOCALES_PATH                  = "locales"
+	ConfigsFlag          = "configs"
+	PoolAPICertsFlag     = "pool-api-certs"
+	LoggerOutputPathFlag = "logger-output-path"
+	LocalesPathFlag      = "locales-path"
+	LocalesFlag          = "locales"
 
-	CONFIGS_PATH_DEFAULT             = "configs"
-	CERTS_PATH_DEFAULT               = "certs"
-	LOGGER_OUTPUT_PATH_DEFAULT       = "logs/output.log"
-	LOGGER_ERROR_OUTPUT_PATH_DEFAULT = "logs/error.log"
-	LOCALES_PATH_DEFAULT             = "locales"
+	ConfigsPathDefault      = "configs"
+	PoolAPICertsPathDefault = "certs"
+	LocalesPathDefault      = "locales"
+	LoggerOutputPathDefault = "logs/output.log"
 )
 
 type ParsedFlags struct {
-	AppMode               *string
-	ConfigsPath           *string
-	CertsPath             *string
-	LoggerOutputPath      *string
-	LoggerErrorOutputPath *string
-	LocalesPath           *string
-	Locales               *Locales
+	AppMode          *string
+	ConfigsPath      *string
+	PoolAPICertsPath *string
+	LoggerOutputPath *string
+	LogLevel         *string
+	LocalesPath      *string
+	Locales          *Locales
 }
 
 type FlagsLoggerConfig struct {
-	OutputPath      string
-	ErrorOutputPath string
+	OutputPath string
+	Level      LogLevel
 }
 
 type FlagsConfig struct {
-	Mode        AppMode
-	ConfigsPath string
-	CertsPath   string
-	Logger      FlagsLoggerConfig
-	LocalesPath string
-	Locales     Locales
+	Mode             AppMode
+	ConfigsPath      string
+	PoolAPICertsPath string
+	Logger           FlagsLoggerConfig
+	LocalesPath      string
+	Locales          Locales
 }
 
-func ParseFlags() *ParsedFlags {
-	appModeFlag := flag.String(APP_MODE_FLAG, string(AppModeDev), "application mode")
-	configsPathFlag := flag.String(CONFIGS_FLAG, CONFIGS_PATH_DEFAULT, "configs path")
-	certsPathFlag := flag.String(CERTS_FLAG, CERTS_PATH_DEFAULT, "api certificates path")
-	loggerOutputPath := flag.String(LOGGER_OUTPUT_PATH_FLAG, LOGGER_OUTPUT_PATH_DEFAULT, "logger output logs file path")
-	loggerErrorOutputPath := flag.String(LOGGER_ERROR_OUTPUT_PATH_FLAG, LOGGER_ERROR_OUTPUT_PATH_DEFAULT, "logger output error logs file path")
-	localesPathFlag := flag.String(LOCALES_PATH_FLAG, LOCALES_PATH_DEFAULT, "locales path")
+func DefineFlags() *ParsedFlags {
+	appModeFlag := flag.String(AppModeFlag, string(AppModeDev), "application mode")
+	configsPathFlag := flag.String(ConfigsFlag, ConfigsPathDefault, "configs path")
+	poolAPICertsPathFlag := flag.String(PoolAPICertsFlag, PoolAPICertsPathDefault, "pool api certificates path")
+	loggerOutputPath := flag.String(LoggerOutputPathFlag, LoggerOutputPathDefault, "logger output logs file path")
+	logLevelFlag := flag.String(LogLevelFlag, string(LogLevelInfo), "log level")
+	localesPathFlag := flag.String(LocalesPathFlag, LocalesPathDefault, "locales path")
 	var localesFlag Locales
-	flag.Var(&localesFlag, LOCALES_PATH, "comma-separated list of bot locales")
+	flag.Var(&localesFlag, LocalesFlag, "comma-separated list of bot locales")
 	parsedFlags := &ParsedFlags{
-		AppMode:               appModeFlag,
-		ConfigsPath:           configsPathFlag,
-		CertsPath:             certsPathFlag,
-		LoggerOutputPath:      loggerOutputPath,
-		LoggerErrorOutputPath: loggerErrorOutputPath,
-		LocalesPath:           localesPathFlag,
-		Locales:               &localesFlag,
+		AppMode:          appModeFlag,
+		ConfigsPath:      configsPathFlag,
+		PoolAPICertsPath: poolAPICertsPathFlag,
+		LoggerOutputPath: loggerOutputPath,
+		LocalesPath:      localesPathFlag,
+		Locales:          &localesFlag,
+		LogLevel:         logLevelFlag,
 	}
 
 	flag.Parse()
@@ -71,13 +69,12 @@ func ParseFlags() *ParsedFlags {
 
 func SetupFlags(parsedFlags *ParsedFlags) *FlagsConfig {
 	appMode := AppModeDev
-	configsPath := CONFIGS_PATH_DEFAULT
-	certsPath := CERTS_PATH_DEFAULT
+	configsPath := ConfigsPathDefault
+	poolAPICertsPath := PoolAPICertsPathDefault
 	loggerConfig := FlagsLoggerConfig{
-		OutputPath:      LOGGER_OUTPUT_PATH_DEFAULT,
-		ErrorOutputPath: LOGGER_ERROR_OUTPUT_PATH_DEFAULT,
+		OutputPath: LoggerOutputPathDefault,
 	}
-	localesPath := LOCALES_PATH_DEFAULT
+	localesPath := LocalesPathDefault
 	locales := []language.Tag{language.English}
 
 	if parsedFlags.AppMode != nil {
@@ -88,31 +85,32 @@ func SetupFlags(parsedFlags *ParsedFlags) *FlagsConfig {
 		configsPath = *parsedFlags.ConfigsPath
 	}
 
-	if parsedFlags.CertsPath != nil {
-		certsPath = *parsedFlags.CertsPath
+	if parsedFlags.PoolAPICertsPath != nil {
+		poolAPICertsPath = *parsedFlags.PoolAPICertsPath
 	}
 
 	if parsedFlags.LoggerOutputPath != nil {
 		loggerConfig.OutputPath = *parsedFlags.LoggerOutputPath
 	}
 
-	if parsedFlags.LoggerErrorOutputPath != nil {
-		loggerConfig.ErrorOutputPath = *parsedFlags.LoggerErrorOutputPath
+	if parsedFlags.LogLevel != nil {
+		loggerConfig.Level = checkLogLevel(*parsedFlags.LogLevel)
 	}
 
 	if parsedFlags.LocalesPath != nil {
 		localesPath = *parsedFlags.LocalesPath
 	}
 
-	if parsedFlags.Locales != nil {
+	if parsedFlags.Locales != nil && len(*parsedFlags.Locales) > 0 {
 		locales = *parsedFlags.Locales
 	}
 
 	return &FlagsConfig{
-		Mode:        appMode,
-		ConfigsPath: configsPath,
-		CertsPath:   certsPath,
-		LocalesPath: localesPath,
-		Locales:     locales,
+		Mode:             appMode,
+		ConfigsPath:      configsPath,
+		PoolAPICertsPath: poolAPICertsPath,
+		Logger:           loggerConfig,
+		LocalesPath:      localesPath,
+		Locales:          locales,
 	}
 }

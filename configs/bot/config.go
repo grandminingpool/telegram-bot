@@ -1,11 +1,11 @@
-package botConfig
+package bot
 
 import (
 	"fmt"
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	configUtils "github.com/grandminingpool/telegram-bot/internal/common/utils/config"
+	config_utils "github.com/grandminingpool/telegram-bot/internal/common/utils/config"
 	"github.com/spf13/viper"
 )
 
@@ -22,11 +22,6 @@ func (c CheckIntervalsConfig) PayoutsDuration() time.Duration {
 	return time.Duration(c.Payouts) * time.Minute
 }
 
-type SupportBotConfig struct {
-	UserID   int64  `mapstructure:"userID" validate:"required"`
-	Username string `mapstructure:"username" validate:"required"`
-}
-
 type NotifyConfig struct {
 	MaxWalletsInPayoutsRequest int                  `mapstructure:"maxWalletsInPayoutsRequest"`
 	MaxWalletsInWorkersRequest int                  `mapstructure:"maxWalletsInWorkersRequest"`
@@ -36,11 +31,12 @@ type NotifyConfig struct {
 }
 
 type Config struct {
-	BotToken            string           `mapstructure:"botToken" validate:"required"`
-	PoolURL             string           `mapstructure:"poolURL" validate:"required"`
-	SupportBot          SupportBotConfig `mapstructure:"supportBot" validate:"required"`
-	WalletsLimitPerUser int              `mapstructure:"walletsLimitPerUser"`
-	Notify              NotifyConfig     `mapstructure:"notify"`
+	BotToken            string       `mapstructure:"botToken" validate:"required"`
+	PoolURL             string       `mapstructure:"poolURL" validate:"required"`
+	PoolChatLink        string       `mapstructure:"poolChatLink" validate:"required"`
+	SupportChatID       int64        `mapstructure:"supportChatID" validate:"required"`
+	WalletsLimitPerUser int          `mapstructure:"walletsLimitPerUser"`
+	Notify              NotifyConfig `mapstructure:"notify"`
 }
 
 const configName = "bot"
@@ -60,11 +56,11 @@ func New(configsPath string, validate *validator.Validate) (*Config, error) {
 	botViper.SetDefault("notify.checkIntervals.workers", 5)
 	botViper.SetDefault("notify.checkIntervals.payouts", 60)
 
-	if err := configUtils.ReadConfig(botViper, configName); err != nil {
+	if err := config_utils.ReadConfig(botViper, configName); err != nil {
 		return nil, err
 	}
 
-	config, err := configUtils.LoadConfig[Config](botViper, validate, configName)
+	config, err := config_utils.LoadConfig[Config](botViper, validate, configName)
 	if err != nil {
 		return nil, err
 	}

@@ -13,27 +13,28 @@ import (
 type FAQHandler struct {
 	poolURL              string
 	checkWorkersInterval int
-	supportBotUsername   string
+	poolChatLink   string
 }
 
 func (h *FAQHandler) Handler(ctx context.Context, user *middlewares.User, b *bot.Bot, update *models.Update) {
 	b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: update.Message.Chat.ID,
+		ChatID:    update.Message.Chat.ID,
+		ParseMode: models.ParseModeHTML,
 		Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
-			MessageID: "FAQText",
+			MessageID: "FAQMessage",
 			TemplateData: map[string]string{
 				"PoolURL":              h.poolURL,
 				"CheckWorkersInterval": fmt.Sprintf("%d", h.checkWorkersInterval),
-				"SupportBotUsername":   h.supportBotUsername,
+				"PoolChatLink":         h.poolChatLink,
 			},
 		}),
 	})
 }
 
-func NewFAQHandler(poolURL string, checkWorkersInterval int, supportBotUsername string) *FAQHandler {
+func NewFAQHandler(poolURL string, checkWorkersInterval int, poolChatLink string) *FAQHandler {
 	return &FAQHandler{
 		poolURL:              poolURL,
 		checkWorkersInterval: checkWorkersInterval,
-		supportBotUsername:   supportBotUsername,
+		poolChatLink:   poolChatLink,
 	}
 }

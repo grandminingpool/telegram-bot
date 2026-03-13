@@ -1,4 +1,4 @@
-package botNotify
+package bot_notify
 
 import (
 	"context"
@@ -7,10 +7,10 @@ import (
 
 	"github.com/go-co-op/gocron/v2"
 	"github.com/go-telegram/bot"
-	botConfig "github.com/grandminingpool/telegram-bot/configs/bot"
+	bot_config "github.com/grandminingpool/telegram-bot/configs/bot"
 	"github.com/grandminingpool/telegram-bot/internal/blockchains"
 	"github.com/grandminingpool/telegram-bot/internal/common/languages"
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type PlannedJob struct {
@@ -23,7 +23,7 @@ type Service struct {
 	ctxCancel context.CancelFunc
 	workers   *Workers
 	payouts   *Payouts
-	config    *botConfig.NotifyConfig
+	config    *bot_config.NotifyConfig
 	jobs      []gocron.Job
 }
 
@@ -86,11 +86,11 @@ func (s *Service) Stop() error {
 }
 
 func NewService(
-	pgConn *sqlx.DB,
+	pgConn *pgxpool.Pool,
 	blockchainsService *blockchains.Service,
 	b *bot.Bot,
 	languages *languages.Languages,
-	config *botConfig.NotifyConfig,
+	config *bot_config.NotifyConfig,
 ) *Service {
 	workers := &Workers{
 		pgConn:             pgConn,

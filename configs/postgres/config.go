@@ -1,10 +1,11 @@
-package postgresConfig
+package postgres
 
 import (
 	"fmt"
+	"net/url"
 
 	"github.com/go-playground/validator/v10"
-	configUtils "github.com/grandminingpool/telegram-bot/internal/common/utils/config"
+	config_utils "github.com/grandminingpool/telegram-bot/internal/common/utils/config"
 	"github.com/spf13/viper"
 )
 
@@ -19,7 +20,9 @@ type Config struct {
 const configName = "postgres"
 
 func (c *Config) DSN() string {
-	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=disable", c.User, c.Password, c.Host, c.Port, c.Database)
+	userInfo := url.UserPassword(c.User, c.Password)
+
+	return fmt.Sprintf("postgresql://%s@%s:%d/%s?sslmode=disable", userInfo.String(), c.Host, c.Port, c.Database)
 }
 
 func New(configsPath string, validate *validator.Validate) (*Config, error) {
@@ -30,11 +33,11 @@ func New(configsPath string, validate *validator.Validate) (*Config, error) {
 	postgresViper.SetDefault("host", "127.0.0.1")
 	postgresViper.SetDefault("port", 5432)
 
-	if err := configUtils.ReadConfig(postgresViper, configName); err != nil {
+	if err := config_utils.ReadConfig(postgresViper, configName); err != nil {
 		return nil, err
 	}
 
-	config, err := configUtils.LoadConfig[Config](postgresViper, validate, configName)
+	config, err := config_utils.LoadConfig[Config](postgresViper, validate, configName)
 	if err != nil {
 		return nil, err
 	}

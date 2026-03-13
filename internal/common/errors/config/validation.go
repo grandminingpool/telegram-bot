@@ -1,4 +1,4 @@
-package configErrors
+package config_errors
 
 import "fmt"
 

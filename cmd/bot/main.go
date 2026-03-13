@@ -6,21 +6,21 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"sync"
+
 	"syscall"
 
 	"github.com/go-playground/validator/v10"
-	botConfig "github.com/grandminingpool/telegram-bot/configs/bot"
-	postgresConfig "github.com/grandminingpool/telegram-bot/configs/postgres"
+	bot_config "github.com/grandminingpool/telegram-bot/configs/bot"
+	postgres_config "github.com/grandminingpool/telegram-bot/configs/postgres"
 	"github.com/grandminingpool/telegram-bot/internal/blockchains"
-	poolBot "github.com/grandminingpool/telegram-bot/internal/bot"
+	pool_bot "github.com/grandminingpool/telegram-bot/internal/bot"
 	"github.com/grandminingpool/telegram-bot/internal/bot/handlers"
 	"github.com/grandminingpool/telegram-bot/internal/bot/services"
 	"github.com/grandminingpool/telegram-bot/internal/common/flags"
 	"github.com/grandminingpool/telegram-bot/internal/common/languages"
 	"github.com/grandminingpool/telegram-bot/internal/common/logger"
-	botNotify "github.com/grandminingpool/telegram-bot/internal/notify"
-	postgresProvider "github.com/grandminingpool/telegram-bot/internal/providers/postgres"
+	bot_notify "github.com/grandminingpool/telegram-bot/internal/notify"
+	postgres_provider "github.com/grandminingpool/telegram-bot/internal/providers/postgres"
 	"go.uber.org/zap"
 )
 
@@ -29,16 +29,16 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	//	Parse flags
-	parsedFlags := flags.ParseFlags()
+	parsedFlags := flags.DefineFlags()
 
 	//	Setup flags
 	flagsConf := flags.SetupFlags(parsedFlags)
 
 	//	Setup logger
 	zapLogger, err := logger.SetupLogger(&logger.LoggerConfig{
-		AppMode:         flagsConf.Mode,
-		OutputPath:      flagsConf.Logger.OutputPath,
-		ErrorOutputPath: flagsConf.Logger.ErrorOutputPath,
+		AppMode:    flagsConf.Mode,
+		OutputPath: flagsConf.Logger.OutputPath,
+		Level:      flagsConf.Logger.Level,
 	})
 	if err != nil {
 		log.Fatal(fmt.Errorf("failed to setup zap logger: %w", err))
@@ -57,13 +57,13 @@ func main() {
 	}
 
 	//	Init postgres config
-	postgresConf, err := postgresConfig.New(flagsConf.ConfigsPath, validate)
+	postgresConf, err := postgres_config.New(flagsConf.ConfigsPath, validate)
 	if err != nil {
 		zap.L().Fatal("failed to load postgres config", zap.Error(err))
 	}
 
 	//	Init postgres connection
-	pgConn, err := postgresProvider.NewConnection(ctx, postgresConf)
+	pgConn, err := postgres_provider.NewConnection(ctx, postgresConf)
 	if err != nil {
 		zap.L().Fatal("failed to create postgres connection", zap.Error(err))
 	}
@@ -72,7 +72,7 @@ func main() {
 
 	//	Init blockchains service and start
 	blockchainsService := blockchains.NewService(pgConn)
-	if err := blockchainsService.Start(ctx, flagsConf.CertsPath); err != nil {
+	if err := blockchainsService.Start(ctx, flagsConf.PoolAPICertsPath); err != nil {
 		zap.L().Fatal("failed to start blockchains service", zap.Error(err))
 	}
 
@@ -80,17 +80,15 @@ func main() {
 	userService := services.NewUserService(pgConn)
 	userActionService := services.NewUserActionService(pgConn)
 	userWalletService := services.NewUserWalletService(pgConn, blockchainsService)
-	feedbackService := services.NewFeedbackService(pgConn)
-
 	//	Init bot config
-	botConf, err := botConfig.New(flagsConf.ConfigsPath, validate)
+	botConf, err := bot_config.New(flagsConf.ConfigsPath, validate)
 	if err != nil {
 		zap.L().Fatal("failed to load bot config", zap.Error(err))
 	}
 
 	//	Create bot
-	defaultHandler := handlers.NewDefaultHandler(languages)
-	botOptions := poolBot.CreateBotOptions(
+	defaultHandler := handlers.NewDefaultHandler(languages, userActionService)
+	botOptions, enterWalletHandler, poolStatsHandler, removeWalletHandler := pool_bot.CreateBotOptions(
 		flagsConf.Mode,
 		blockchainsService,
 		userService,
@@ -100,29 +98,37 @@ func main() {
 		defaultHandler,
 		botConf,
 	)
-	b, err := poolBot.CreateBot(botOptions, botConf.BotToken)
+	b, err := pool_bot.CreateBot(botOptions, botConf.BotToken)
 	if err != nil {
 		zap.L().Fatal("failed to create bot", zap.Error(err))
 	}
 
-	poolBotHandlerMatcher := poolBot.NewHandlerMatcher(ctx, userActionService)
-	poolBot.RegisterHandlers(
+	handlerMatcher := pool_bot.NewHandlerMatcher(ctx, userActionService)
+	pool_bot.RegisterHandlers(
 		b,
-		poolBotHandlerMatcher,
+		handlerMatcher,
 		defaultHandler,
+		userService,
 		userActionService,
 		userWalletService,
-		feedbackService,
 		blockchainsService,
+		enterWalletHandler,
+		poolStatsHandler,
+		removeWalletHandler,
+		languages.GetLocalizers(),
 		botConf,
 	)
 
-	if err := poolBot.SetBotDescription(ctx, b, languages.GetLocalizers()); err != nil {
+	if err := pool_bot.SetBotDescription(ctx, b, languages.GetLocalizers()); err != nil {
 		zap.L().Warn("failed to set bot description", zap.Error(err))
 	}
 
+	if err := pool_bot.SetBotCommands(ctx, b, languages.GetLocalizers()); err != nil {
+		zap.L().Warn("failed to set bot commands", zap.Error(err))
+	}
+
 	//	Create botify service
-	notifyService := botNotify.NewService(pgConn, blockchainsService, b, languages, &botConf.Notify)
+	notifyService := bot_notify.NewService(pgConn, blockchainsService, b, languages, &botConf.Notify)
 
 	//	Subscribe to system signals
 	signalChan := make(chan os.Signal, 1)
@@ -134,23 +140,23 @@ func main() {
 		syscall.SIGQUIT,
 	)
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	//	Start notify service
+	if err := notifyService.Start(ctx); err != nil {
+		zap.L().Fatal("failed to start notify service", zap.Error(err))
+	}
 
+	go func() {
 		stop := <-signalChan
 
 		zap.L().Info("waiting for all processes to stop", zap.String("signal", stop.String()))
 
-		var stopErr error
-		if stopErr = notifyService.Stop(); stopErr != nil {
-			zap.L().Fatal("failed to stop notify service", zap.Error(stopErr))
+		if stopErr := notifyService.Stop(); stopErr != nil {
+			zap.L().Error("failed to stop notify service", zap.Error(stopErr))
 		}
 
 		ok, stopErr := b.Close(ctx)
 		if stopErr != nil {
-			zap.L().Fatal("failed to close bot instance", zap.Error(stopErr))
+			zap.L().Error("failed to close bot instance", zap.Error(stopErr))
 		} else if !ok {
 			zap.L().Warn("unsuccessful bot instance close")
 		} else {
@@ -158,27 +164,19 @@ func main() {
 		}
 
 		cancel()
-
-		blockchainsService.Close()
-		zap.L().Info("closed blockchains pool api connections")
-
-		if stopErr = pgConn.Close(); stopErr != nil {
-			zap.L().Fatal("failed to close postgres connection", zap.Error(stopErr))
-		}
-
-		zap.L().Info("closed postgres connection")
 	}()
 
-	//	Run bot
+	//	Run bot (blocks until context is cancelled)
 	zap.L().Info("starting bot")
 
 	b.Start(ctx)
 
-	//	Start notify service
-	if err := notifyService.Start(ctx); err != nil {
-		zap.L().Fatal("failed to start notify service", zap.Error(err))
-	}
+	//	Cleanup after bot stops
+	blockchainsService.Close()
+	zap.L().Info("closed blockchains pool api connections")
 
-	wg.Wait()
+	pgConn.Close()
+	zap.L().Info("closed postgres connection")
+
 	zap.L().Info("bot stopped")
 }

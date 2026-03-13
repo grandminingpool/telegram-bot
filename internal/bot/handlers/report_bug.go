@@ -2,10 +2,11 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	botKeyboards "github.com/grandminingpool/telegram-bot/internal/bot/keyboards"
+	bot_keyboards "github.com/grandminingpool/telegram-bot/internal/bot/keyboards"
 	"github.com/grandminingpool/telegram-bot/internal/bot/middlewares"
 	"github.com/grandminingpool/telegram-bot/internal/bot/services"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -13,12 +14,12 @@ import (
 )
 
 type ReportBugHandler struct {
-	feedbackService    *services.FeedbackService
 	userActionService  *services.UserActionService
-	supportBotUsername string
+	supportChatID      int64
+	poolChatLink string
 }
 
-func (h *ReportBugHandler) Back(ctx context.Context, user *middlewares.User, startKeyboard *botKeyboards.StartKeyboard, b *bot.Bot, update *models.Update) {
+func (h *ReportBugHandler) Back(ctx context.Context, user *middlewares.User, startKeyboard *bot_keyboards.StartKeyboard, b *bot.Bot, update *models.Update) {
 	if err := h.userActionService.Clear(ctx, user.ID); err != nil {
 		zap.L().Error("error clearing user action before returning to main menu",
 			zap.Int64("user_id", user.ID),
@@ -33,7 +34,7 @@ func (h *ReportBugHandler) Back(ctx context.Context, user *middlewares.User, sta
 		Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: "ReturningToMenu",
 		}),
-		ReplyMarkup: botKeyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
+		ReplyMarkup: bot_keyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
 	})
 }
 
@@ -52,36 +53,37 @@ func (h *ReportBugHandler) Enter(ctx context.Context, user *middlewares.User, b 
 		Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: "ReportBugMessage",
 		}),
-		ReplyMarkup: botKeyboards.CreateBackReplyKeyboard(b, botKeyboards.WithStartKeyboardHandler(h.Back), user.Localizer),
+		ReplyMarkup: bot_keyboards.CreateBackReplyKeyboard(user.Localizer),
 	})
 }
 
-func (h *ReportBugHandler) SendFeedback(ctx context.Context, user *middlewares.User, startKeyboard *botKeyboards.StartKeyboard, b *bot.Bot, update *models.Update) {
-	payload := &services.AddFeedbackPayload{
-		ReportMessage: update.Message.Text,
-	}
-
+func (h *ReportBugHandler) SendFeedback(ctx context.Context, user *middlewares.User, startKeyboard *bot_keyboards.StartKeyboard, b *bot.Bot, update *models.Update) {
+	feedbackText := fmt.Sprintf("Feedback from user %d", user.ID)
 	if update.Message.From != nil {
-		if update.Message.From.FirstName != "" {
-			payload.FirstName = &update.Message.From.FirstName
+		name := update.Message.From.FirstName
+		if update.Message.From.LastName != "" {
+			name += " " + update.Message.From.LastName
 		}
 
-		if update.Message.From.LastName != "" {
-			payload.LastName = &update.Message.From.LastName
+		if name != "" {
+			feedbackText = fmt.Sprintf("Feedback from %s (ID: %d)", name, user.ID)
 		}
 
 		if update.Message.From.Username != "" {
-			payload.Username = &update.Message.From.Username
+			feedbackText += fmt.Sprintf(" @%s", update.Message.From.Username)
 		}
 	}
 
-	if err := h.feedbackService.Add(ctx, user.ID, payload); err != nil {
-		zap.L().Error("add feedback error",
+	feedbackText += fmt.Sprintf("\n\n%s", update.Message.Text)
+
+	if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID: h.supportChatID,
+		Text:      feedbackText,
+	}); err != nil {
+		zap.L().Error("failed to send feedback to support user",
 			zap.Int64("user_id", user.ID),
-			zap.String("message", payload.ReportMessage),
-			zap.Stringp("first_name", payload.FirstName),
-			zap.Stringp("last_name", payload.LastName),
-			zap.Stringp("username", payload.Username),
+			zap.Int64("support_chat_id", h.supportChatID),
+			zap.String("message", update.Message.Text),
 			zap.Error(err),
 		)
 
@@ -102,21 +104,21 @@ func (h *ReportBugHandler) SendFeedback(ctx context.Context, user *middlewares.U
 		Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: "UserFeedbackSent",
 			TemplateData: map[string]string{
-				"SupportBotUsername": h.supportBotUsername,
+				"PoolChatLink": h.poolChatLink,
 			},
 		}),
-		ReplyMarkup: botKeyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
+		ReplyMarkup: bot_keyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
 	})
 }
 
 func NewReportBugHandler(
-	feedbackService *services.FeedbackService,
 	userActionService *services.UserActionService,
-	supportBotUsername string,
+	supportChatID int64,
+	poolChatLink string,
 ) *ReportBugHandler {
 	return &ReportBugHandler{
-		feedbackService:    feedbackService,
 		userActionService:  userActionService,
-		supportBotUsername: supportBotUsername,
+		supportChatID:      supportChatID,
+		poolChatLink: poolChatLink,
 	}
 }

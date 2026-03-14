@@ -60,6 +60,10 @@ UserHasNoActiveWorkers = "Нет активных воркеров"
 
 EnterWallet = "Введите адрес кошелька.\n\nПример:\n{{.ExampleWallet}}"
 
+DeepLinkInvalidFormat = "Неверный формат ссылки. Используйте: t.me/{{.BotUsername}}?start=coin_wallet"
+
+DeepLinkBlockchainNotFound = "Блокчейн не найден. Проверьте название монеты в ссылке."
+
 InvalidWallet = "Неверный формат кошелька. Попробуйте ещё раз."
 
 ExceededWalletsLimit = "Превышен лимит количества кошельков"

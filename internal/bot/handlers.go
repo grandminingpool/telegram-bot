@@ -99,6 +99,7 @@ func RegisterHandlers(
 	removeWalletHandler *handlers.RemoveWalletHandler,
 	localizers []languages.LocalizersItem,
 	config *bot_config.Config,
+	botUsername string,
 ) {
 	blockchainsInfo := blockchainsService.GetBlockchainsInfo()
 
@@ -113,12 +114,20 @@ func RegisterHandlers(
 		config.WalletsLimitPerUser,
 	)
 
+	//	deep link handler
+	deepLinkHandler := handlers.NewDeepLinkHandler(
+		defaultHandler,
+		addWalletHandler,
+		blockchainsService,
+		botUsername,
+	)
+
 	//	command handlers
 	b.RegisterHandler(
 		bot.HandlerTypeMessageText,
 		string(constants.StartCommand),
-		bot.MatchTypeExact,
-		middlewares.WithUserHandler(bot_keyboards.WithStartKeyboardHandler(defaultHandler.Handler)),
+		bot.MatchTypePrefix,
+		middlewares.WithUserHandler(bot_keyboards.WithStartKeyboardHandler(deepLinkHandler.Handler)),
 	)
 	b.RegisterHandler(
 		bot.HandlerTypeMessageText,

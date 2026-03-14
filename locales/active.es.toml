@@ -60,6 +60,10 @@ UserHasNoActiveWorkers = "No hay workers activos"
 
 EnterWallet = "Ingresa una billetera.\n\nEjemplo:\n{{.ExampleWallet}}"
 
+DeepLinkInvalidFormat = "Formato de enlace no válido. Usa: t.me/{{.BotUsername}}?start=coin_wallet"
+
+DeepLinkBlockchainNotFound = "Blockchain no encontrado. Verifica el nombre de la moneda en el enlace."
+
 InvalidWallet = "Formato de billetera incorrecto. Inténtalo de nuevo."
 
 ExceededWalletsLimit = "Se ha superado el límite de billeteras"

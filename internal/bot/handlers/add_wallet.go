@@ -23,137 +23,117 @@ type AddWalletHandler struct {
 	walletsLimitPerUser  int
 }
 
-func (h *AddWalletHandler) Handler(ctx context.Context, user *middlewares.User, startKeyboard *bot_keyboards.StartKeyboard, b *bot.Bot, update *models.Update) {
-	if user.Action != nil {
-		coin := *user.Action.Payload
-		blockchain, err := h.blockchainsService.GetInfo(coin)
-		if err != nil {
-			zap.L().Error("get blockchain info error",
-				zap.Int64("user_id", user.ID),
-				zap.String("coin", coin),
-				zap.Error(err),
-			)
-
-			return
-		}
-
-		conn, err := h.blockchainsService.GetConnection(coin)
-		if err != nil {
-			zap.L().Error("get blockchain pool connection error",
-				zap.Int64("user_id", user.ID),
-				zap.String("coin", coin),
-				zap.Error(err),
-			)
-
-			return
-		}
-
-		wallet := update.Message.Text
-		client := pool_miners_proto.NewPoolMinersServiceClient(conn)
-		response, err := client.ValidateAddress(ctx, &pool_miners_proto.MinerAddressRequest{
-			Address: wallet,
-		})
-		if err != nil {
-			zap.L().Error("wallet address validation error",
-				zap.Int64("user_id", user.ID),
-				zap.String("coin", coin),
-				zap.String("wallet", wallet),
-				zap.Error(err),
-			)
-
-			return
-		}
-
-		if !response.Valid {
-			b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID:    update.Message.Chat.ID,
-
-				Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
-					MessageID: "InvalidWallet",
-				}),
-			})
-		} else {
-			walletsCount, err := h.userWalletService.Count(ctx, user.ID, blockchain.Coin)
-			if err != nil {
-				zap.L().Error("count user wallets error",
-					zap.Int64("user_id", user.ID),
-					zap.String("coin", coin),
-					zap.Error(err),
-				)
-
-				return
-			}
-
-			if walletsCount+1 > h.walletsLimitPerUser {
-				b.SendMessage(ctx, &bot.SendMessageParams{
-					ChatID:    update.Message.Chat.ID,
-	
-					Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
-						MessageID: "ExceededWalletsLimit",
-					}),
-				})
-
-				return
-			}
-
-			hasDuplicates, err := h.userWalletService.CheckDuplicates(ctx, user.ID, blockchain.Coin, wallet)
-			if err != nil {
-				zap.L().Error("check user wallet duplicates error",
-					zap.Int64("user_id", user.ID),
-					zap.String("coin", coin),
-					zap.String("wallet", wallet),
-					zap.Error(err),
-				)
-
-				return
-			}
-
-			if hasDuplicates {
-				b.SendMessage(ctx, &bot.SendMessageParams{
-					ChatID:    update.Message.Chat.ID,
-	
-					Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
-						MessageID: "WalletAlreadyAdded",
-					}),
-					ReplyMarkup: bot_keyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
-				})
-
-				return
-			}
-
-			if err := h.userWalletService.Add(ctx, user.ID, blockchain.Coin, wallet); err != nil {
-				zap.L().Error("add user wallet error",
-					zap.Int64("user_id", user.ID),
-					zap.String("coin", coin),
-					zap.String("wallet", wallet),
-					zap.Error(err),
-				)
-
-				return
-			}
-
-			if err := h.userActionService.Clear(ctx, user.ID); err != nil {
-				zap.L().Error("error clearing user action after adding wallet",
-					zap.Int64("user_id", user.ID),
-					zap.Error(err),
-				)
-
-				return
-			}
-
-			b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID:    update.Message.Chat.ID,
-
-				Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
-					MessageID: "WalletAdded",
-					TemplateData: map[string]string{
-						"CheckWorkersInterval": fmt.Sprintf("%d", h.checkWorkersInterval),
-					},
-				}),
-				ReplyMarkup: bot_keyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
-			})
-		}
+// ValidateAndAdd validates wallet address via Pool API, checks limits and duplicates,
+// and adds the wallet. Returns a non-empty errorMessageID for user-facing errors.
+func (h *AddWalletHandler) ValidateAndAdd(ctx context.Context, userID int64, coin, wallet string) (errorMessageID string, err error) {
+	conn, err := h.blockchainsService.GetConnection(coin)
+	if err != nil {
+		return "", fmt.Errorf("get blockchain connection (coin: %s): %w", coin, err)
 	}
+
+	client := pool_miners_proto.NewPoolMinersServiceClient(conn)
+	response, err := client.ValidateAddress(ctx, &pool_miners_proto.MinerAddressRequest{
+		Address: wallet,
+	})
+	if err != nil {
+		return "", fmt.Errorf("validate address (coin: %s, wallet: %s): %w", coin, wallet, err)
+	}
+
+	if !response.Valid {
+		return "InvalidWallet", nil
+	}
+
+	walletsCount, err := h.userWalletService.Count(ctx, userID, coin)
+	if err != nil {
+		return "", fmt.Errorf("count wallets (coin: %s): %w", coin, err)
+	}
+
+	if walletsCount+1 > h.walletsLimitPerUser {
+		return "ExceededWalletsLimit", nil
+	}
+
+	hasDuplicates, err := h.userWalletService.CheckDuplicates(ctx, userID, coin, wallet)
+	if err != nil {
+		return "", fmt.Errorf("check duplicates (coin: %s, wallet: %s): %w", coin, wallet, err)
+	}
+
+	if hasDuplicates {
+		return "WalletAlreadyAdded", nil
+	}
+
+	if err := h.userWalletService.Add(ctx, userID, coin, wallet); err != nil {
+		return "", fmt.Errorf("add wallet (coin: %s, wallet: %s): %w", coin, wallet, err)
+	}
+
+	return "", nil
+}
+
+func (h *AddWalletHandler) Handler(ctx context.Context, user *middlewares.User, startKeyboard *bot_keyboards.StartKeyboard, b *bot.Bot, update *models.Update) {
+	if user.Action == nil {
+		return
+	}
+
+	coin := *user.Action.Payload
+	if _, err := h.blockchainsService.GetInfo(coin); err != nil {
+		zap.L().Error("get blockchain info error",
+			zap.Int64("user_id", user.ID),
+			zap.String("coin", coin),
+			zap.Error(err),
+		)
+
+		return
+	}
+
+	wallet := update.Message.Text
+
+	errorMessageID, err := h.ValidateAndAdd(ctx, user.ID, coin, wallet)
+	if err != nil {
+		zap.L().Error("add wallet error",
+			zap.Int64("user_id", user.ID),
+			zap.String("coin", coin),
+			zap.String("wallet", wallet),
+			zap.Error(err),
+		)
+
+		return
+	}
+
+	if errorMessageID != "" {
+		replyMarkup := bot_keyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer)
+		if errorMessageID == "InvalidWallet" {
+			replyMarkup = nil
+		}
+
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
+				MessageID: errorMessageID,
+			}),
+			ReplyMarkup: replyMarkup,
+		})
+
+		return
+	}
+
+	if err := h.userActionService.Clear(ctx, user.ID); err != nil {
+		zap.L().Error("error clearing user action after adding wallet",
+			zap.Int64("user_id", user.ID),
+			zap.Error(err),
+		)
+
+		return
+	}
+
+	b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID: update.Message.Chat.ID,
+		Text: user.Localizer.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: "WalletAdded",
+			TemplateData: map[string]string{
+				"CheckWorkersInterval": fmt.Sprintf("%d", h.checkWorkersInterval),
+			},
+		}),
+		ReplyMarkup: bot_keyboards.CreateStartReplyKeyboard(b, startKeyboard, user.Localizer),
+	})
 }
 
 func NewAddWalletHandler(

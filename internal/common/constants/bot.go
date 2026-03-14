@@ -6,4 +6,6 @@ const (
 	StartCommand     BotCommand = "/start"
 	FAQCommand       BotCommand = "/faq"
 	ReportBugCommand BotCommand = "/reportbug"
+
+	DeepLinkSeparator = "_"
 )

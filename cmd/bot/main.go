@@ -103,6 +103,12 @@ func main() {
 		zap.L().Fatal("failed to create bot", zap.Error(err))
 	}
 
+	//	Get bot info
+	botUser, err := b.GetMe(ctx)
+	if err != nil {
+		zap.L().Fatal("failed to get bot info", zap.Error(err))
+	}
+
 	handlerMatcher := pool_bot.NewHandlerMatcher(ctx, userActionService)
 	pool_bot.RegisterHandlers(
 		b,
@@ -117,6 +123,7 @@ func main() {
 		removeWalletHandler,
 		languages.GetLocalizers(),
 		botConf,
+		botUser.Username,
 	)
 
 	if err := pool_bot.SetBotDescription(ctx, b, languages.GetLocalizers()); err != nil {

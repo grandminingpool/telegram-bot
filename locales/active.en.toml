@@ -60,6 +60,10 @@ UserHasNoActiveWorkers = "No active workers"
 
 EnterWallet = "Enter a wallet.\n\nExample:\n{{.ExampleWallet}}"
 
+DeepLinkInvalidFormat = "Invalid link format. Use: t.me/{{.BotUsername}}?start=coin_wallet"
+
+DeepLinkBlockchainNotFound = "Blockchain not found. Please check the coin name in the link."
+
 InvalidWallet = "Wrong wallet format. Try one more time."
 
 ExceededWalletsLimit = "The limit on the count of wallets has been exceeded"

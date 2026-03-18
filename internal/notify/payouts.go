@@ -34,6 +34,7 @@ type SoloPayoutInfo struct {
 	blockHash string
 	txHash    string
 	paidAt    time.Time
+	minedAt   time.Time
 }
 
 type UserPayouts struct {
@@ -375,6 +376,7 @@ func (p *Payouts) notifyUsersSoloPayments(
 						"BlockHash": userSoloPayoutInfo.blockHash,
 						"TxHash":    userSoloPayoutInfo.txHash,
 						"PaidAt":    userSoloPayoutInfo.paidAt.Format(time.RFC3339),
+						"MinedAt":   userSoloPayoutInfo.minedAt.Format(time.RFC3339),
 					},
 				}))
 
@@ -566,7 +568,8 @@ func (p *Payouts) Check(ctx context.Context) {
 								reward:    walletSoloPayout.Reward,
 								blockHash: walletSoloPayout.BlockHash,
 								txHash:    walletSoloPayout.TxHash,
-								paidAt:    walletSoloPayout.MinedAt.AsTime(),
+								paidAt:    walletSoloPayout.PaidAt.AsTime(),
+								minedAt:   walletSoloPayout.MinedAt.AsTime(),
 							})
 						}
 

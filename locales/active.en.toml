@@ -104,11 +104,11 @@ WorkerInactive = "❗️ Worker <b>{{.Worker}}</b> is not active"
 
 NewPayoutReceived = "💰 New payout received!"
 
-PayoutInfo = "Amount: <b>{{.Amount}} {{.Ticker}}</b>\nTx hash: {{.TxHash}}\nPaid at: {{.PaidAt}}"
+PayoutInfo = "Amount: <b>{{.Amount}} {{.Ticker}}</b>\nTx hash: <b>{{.TxHash}}</b>\nPaid at: <b>{{.PaidAt}}</b>"
 
 NewBlockFound = "🤑 New block found!"
 
-SoloPayoutInfo = "Reward: <b>{{.Reward}} {{.Ticker}}</b>\nBlock hash: {{.BlockHash}}\nTx hash: {{.TxHash}}\nPaid at: {{.PaidAt}}"
+SoloPayoutInfo = "Reward: <b>{{.Reward}} {{.Ticker}}</b>\nBlock hash: <b>{{.BlockHash}}</b>\nTx hash: <b>{{.TxHash}}</b>\nPaid at: <b>{{.PaidAt}}</b>\nMined at: <b>{{.MinedAt}}</b>"
 
 CommandStartDescription = "🚀 Start the bot"
 

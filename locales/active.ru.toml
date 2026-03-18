@@ -104,11 +104,11 @@ WorkerInactive = "❗️ Воркер <b>{{.Worker}}</b> неактивен"
 
 NewPayoutReceived = "💰 Получена новая выплата!"
 
-PayoutInfo = "Сумма: <b>{{.Amount}} {{.Ticker}}</b>\nTx хеш: {{.TxHash}}\nВыплачено: {{.PaidAt}}"
+PayoutInfo = "Сумма: <b>{{.Amount}} {{.Ticker}}</b>\nTx хеш: <b>{{.TxHash}}</b>\nВыплачено: <b>{{.PaidAt}}</b>"
 
 NewBlockFound = "🤑 Найден новый блок!"
 
-SoloPayoutInfo = "Награда: <b>{{.Reward}} {{.Ticker}}</b>\nХеш блока: {{.BlockHash}}\nTx хеш: {{.TxHash}}\nВыплачено: {{.PaidAt}}"
+SoloPayoutInfo = "Награда: <b>{{.Reward}} {{.Ticker}}</b>\nХеш блока: <b>{{.BlockHash}}</b>\nTx хеш: <b>{{.TxHash}}</b>\nВыплачено: <b>{{.PaidAt}}</b>\nДобыто: <b>{{.MinedAt}}</b>"
 
 CommandStartDescription = "🚀 Запустить бота"
 

@@ -245,48 +245,6 @@ func (w *Workers) getWorkers(
 	}
 }
 
-func (w *Workers) addWorkers(ctx context.Context, tx pgx.Tx, groupNum int, addedWorkers []WorkerDB, errCh chan<- error) {
-	select {
-	case <-ctx.Done():
-		return
-	default:
-		for _, worker := range addedWorkers {
-			if _, err := tx.Exec(ctx, `INSERT INTO wallet_workers (
-				wallet_id,
-				worker,
-				region,
-				solo,
-				connected_at
-			) VALUES ($1, $2, $3, $4, $5)`,
-				worker.WalletID, worker.Worker, worker.Region, worker.Solo, worker.ConnectedAt,
-			); err != nil {
-				errCh <- fmt.Errorf("failed to insert added workers batch (group num: %d, batch length: %d), error: %w", groupNum, len(addedWorkers), err)
-
-				return
-			}
-		}
-	}
-}
-
-func (w *Workers) removeWorkers(ctx context.Context, tx pgx.Tx, groupNum int, removedWorkers []RemovalWorkerDB, errCh chan<- error) {
-	select {
-	case <-ctx.Done():
-		return
-	default:
-		for _, worker := range removedWorkers {
-			if _, err := tx.Exec(ctx, fmt.Sprintf(`INSERT INTO %s (
-				wallet_id,
-				worker
-			) VALUES ($1, $2)`, removedWorkersTempTableName),
-				worker.WalletID, worker.Worker,
-			); err != nil {
-				errCh <- fmt.Errorf("failed to insert removed workers batch to temp table (group num: %d, batch length: %d), error: %w", groupNum, len(removedWorkers), err)
-
-				return
-			}
-		}
-	}
-}
 
 func (w *Workers) notifyUsers(
 	ctx context.Context,
@@ -521,31 +479,39 @@ func (w *Workers) Check(ctx context.Context) {
 		}
 	}
 
-	changedWorkersGroupsLen := len(changedWorkersGroups)
-	changeWorkersErrCh := make(chan error, 2*changedWorkersGroupsLen)
-	defer close(changeWorkersErrCh)
-	changeWorkersWg := sync.WaitGroup{}
-	for groupNum, changedWorkers := range changedWorkersGroups {
-		changeWorkersWg.Add(2)
-		go func(gn int, cw *ChangedWorkersDB) {
-			defer changeWorkersWg.Done()
-			w.addWorkers(newCtx, tx, gn, cw.added, changeWorkersErrCh)
-		}(groupNum, changedWorkers)
-		go func(gn int, cw *ChangedWorkersDB) {
-			defer changeWorkersWg.Done()
-			w.removeWorkers(newCtx, tx, gn, cw.removed, changeWorkersErrCh)
-		}(groupNum, changedWorkers)
+	batch := &pgx.Batch{}
+	for _, changedWorkers := range changedWorkersGroups {
+		for _, worker := range changedWorkers.added {
+			batch.Queue(`INSERT INTO wallet_workers (
+				wallet_id,
+				worker,
+				region,
+				solo,
+				connected_at
+			) VALUES ($1, $2, $3, $4, $5)`,
+				worker.WalletID, worker.Worker, worker.Region, worker.Solo, worker.ConnectedAt,
+			)
+		}
+
+		for _, worker := range changedWorkers.removed {
+			batch.Queue(fmt.Sprintf(`INSERT INTO %s (
+				wallet_id,
+				worker
+			) VALUES ($1, $2)`, removedWorkersTempTableName),
+				worker.WalletID, worker.Worker,
+			)
+		}
 	}
-	changeWorkersWg.Wait()
 
-	select {
-	case err := <-changeWorkersErrCh:
-		tx.Rollback(ctx)
+	if batch.Len() > 0 {
+		br := tx.SendBatch(newCtx, batch)
+		if err := br.Close(); err != nil {
+			tx.Rollback(ctx)
 
-		zap.L().Error("failed to change workers rows in database", zap.Error(err))
+			zap.L().Error("failed to change workers rows in database", zap.Error(err))
 
-		return
-	default:
+			return
+		}
 	}
 
 	if _, err := tx.Exec(ctx, fmt.Sprintf(`DELETE FROM wallet_workers 

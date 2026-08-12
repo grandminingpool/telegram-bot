@@ -25,7 +25,6 @@ const removedWorkersTempTableName = "wallet_workers_to_be_removed"
 
 type WorkerInfo struct {
 	worker      string
-	region      string
 	solo        bool
 	connectedAt time.Time
 }
@@ -46,7 +45,6 @@ type RemovalWorkerDB struct {
 
 type WorkerDB struct {
 	RemovalWorkerDB
-	Region      string    `json:"region"`
 	Solo        bool      `json:"solo"`
 	ConnectedAt time.Time `json:"connected_at"`
 }
@@ -69,14 +67,14 @@ type WalletInfo struct {
 }
 
 type UserWalletWorkers struct {
-	userInfo *UserInfo
+	userInfo UserInfo
 	id       int64
-	workers  *set.HashSet[*WorkerInfo, string]
+	workers  *set.HashSet[WorkerInfo, string]
 }
 
 type UserChangedWorkers struct {
-	added   []*WorkerInfo
-	removed []*WorkerInfo
+	added   []WorkerInfo
+	removed []WorkerInfo
 }
 
 type PoolWorkers struct {
@@ -87,12 +85,12 @@ type PoolWorkers struct {
 }
 
 type ChangedUserWorker struct {
-	wallet *WalletInfo
-	worker *WorkerInfo
+	wallet WalletInfo
+	worker WorkerInfo
 }
 
 type ChangedUserWorkers struct {
-	userInfo *UserInfo
+	userInfo UserInfo
 	added    []ChangedUserWorker
 	removed  []ChangedUserWorker
 }
@@ -105,8 +103,11 @@ type Workers struct {
 	config             *bot_config.NotifyConfig
 }
 
-func (w *Workers) getWorkersMap(ctx context.Context) (map[string]map[string]*UserWalletWorkers, error) {
-	workersMap := make(map[string]map[string]*UserWalletWorkers)
+// getWorkersMap returns wallets grouped as [coin][wallet][]UserWalletWorkers
+// so a single address can be tracked by multiple users — each user gets
+// their own diff state (workers set) and their own wallet_workers.wallet_id.
+func (w *Workers) getWorkersMap(ctx context.Context) (map[string]map[string][]UserWalletWorkers, error) {
+	workersMap := make(map[string]map[string][]UserWalletWorkers)
 	rows, err := w.pgConn.Query(ctx, `SELECT
 		user_wallets.user_id,
 		users.chat_id,
@@ -115,7 +116,6 @@ func (w *Workers) getWorkersMap(ctx context.Context) (map[string]map[string]*Use
 		user_wallets.id,
 		user_wallets.wallet,
 		wallet_workers.worker,
-		wallet_workers.region,
 		wallet_workers.solo,
 		wallet_workers.connected_at
 	FROM user_wallets
@@ -129,7 +129,7 @@ func (w *Workers) getWorkersMap(ctx context.Context) (map[string]map[string]*Use
 		var (
 			userID, chatID, walletID int64
 			userLang, coin, wallet   string
-			worker, region           *string
+			worker                   *string
 			solo                     *bool
 			connectedAt              *time.Time
 		)
@@ -142,36 +142,43 @@ func (w *Workers) getWorkersMap(ctx context.Context) (map[string]map[string]*Use
 			&walletID,
 			&wallet,
 			&worker,
-			&region,
 			&solo,
 			&connectedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan workers columns: %w", err)
 		}
 
-		_, ok := workersMap[coin]
-		if !ok {
-			workersMap[coin] = make(map[string]*UserWalletWorkers)
+		if _, ok := workersMap[coin]; !ok {
+			workersMap[coin] = make(map[string][]UserWalletWorkers)
 		}
 
-		userWalletWorkers, ok := workersMap[coin][wallet]
-		if !ok {
-			userWalletWorkers = &UserWalletWorkers{
-				userInfo: &UserInfo{
+		states := workersMap[coin][wallet]
+		stateIdx := -1
+		for i := range states {
+			if states[i].userInfo.userID == userID {
+				stateIdx = i
+				break
+			}
+		}
+		if stateIdx == -1 {
+			states = append(states, UserWalletWorkers{
+				userInfo: UserInfo{
 					userID: userID,
 					chatID: chatID,
 					lang:   userLang,
 				},
 				id:      walletID,
-				workers: set.NewHashSet[*WorkerInfo, string](0),
-			}
-			workersMap[coin][wallet] = userWalletWorkers
+				workers: set.NewHashSet[WorkerInfo, string](0),
+			})
+			workersMap[coin][wallet] = states
+			stateIdx = len(states) - 1
 		}
 
 		if worker != nil {
-			userWalletWorkers.workers.Insert(&WorkerInfo{
+			// .workers is *HashSet — pointer is shared across copies,
+			// so Insert through the slice element mutates the same set.
+			states[stateIdx].workers.Insert(WorkerInfo{
 				worker:      *worker,
-				region:      *region,
 				solo:        *solo,
 				connectedAt: *connectedAt,
 			})
@@ -181,7 +188,7 @@ func (w *Workers) getWorkersMap(ctx context.Context) (map[string]map[string]*Use
 	return workersMap, nil
 }
 
-func (w *Workers) getPoolRequestsMap(workersMap map[string]map[string]*UserWalletWorkers) (map[string]*PoolWorkersRequests, int, error) {
+func (w *Workers) getPoolRequestsMap(workersMap map[string]map[string][]UserWalletWorkers) (map[string]*PoolWorkersRequests, int, error) {
 	poolRequestsMap := make(map[string]*PoolWorkersRequests)
 	requestsCount := 0
 	for coin, coinWorkersMap := range workersMap {
@@ -222,33 +229,26 @@ func (w *Workers) getWorkers(
 	wallets []string,
 	resultCh chan<- PoolWorkers,
 ) {
-	select {
-	case <-ctx.Done():
-		return
-	default:
-		result := PoolWorkers{
-			groupNum: groupNum,
-			coin:     coin,
-			workers:  nil,
-			err:      nil,
-		}
-		workers, err := client.GetMinersWorkersFromList(ctx, &pool_miners_proto.MinerAddressesRequest{
-			Addresses: wallets,
-		})
-		if err != nil {
-			result.err = fmt.Errorf("failed to get pool (coin: %s) workers for group: %d, error: %w", coin, groupNum, err)
-		} else {
-			result.workers = workers.Workers
-		}
-
-		resultCh <- result
+	result := PoolWorkers{
+		groupNum: groupNum,
+		coin:     coin,
 	}
+	workers, err := client.GetMinersWorkersFromList(ctx, &pool_miners_proto.MinerAddressesRequest{
+		Addresses: wallets,
+	})
+	if err != nil {
+		result.err = fmt.Errorf("failed to get pool (coin: %s) workers for group: %d, error: %w", coin, groupNum, err)
+	} else {
+		result.workers = workers.Workers
+	}
+
+	resultCh <- result
 }
 
 
 func (w *Workers) notifyUsers(
 	ctx context.Context,
-	changedUsersWorkers []*ChangedUserWorkers,
+	changedUsersWorkers []ChangedUserWorkers,
 	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
@@ -264,14 +264,14 @@ func (w *Workers) notifyUsers(
 				msgBuf.WriteString(userLocalizer.MustLocalize(&i18n.LocalizeConfig{
 					MessageID: "WorkerActive",
 					TemplateData: map[string]string{
-						"Worker": addedWorker.worker.worker,
+						"Worker":             addedWorker.worker.worker,
+						"PoolBlockchainName": addedWorker.wallet.blockchain.Name,
 					},
 				}))
 				msgBuf.WriteString("\n\n")
 				msgBuf.WriteString(userLocalizer.MustLocalize(&i18n.LocalizeConfig{
 					MessageID: "WorkerInfoShort",
 					TemplateData: map[string]string{
-						"Region":      addedWorker.worker.region,
 						"Solo":        format_utils.BoolText(addedWorker.worker.solo, userLocalizer),
 						"ConnectedAt": addedWorker.worker.connectedAt.Format(time.Kitchen),
 					},
@@ -293,7 +293,8 @@ func (w *Workers) notifyUsers(
 					Text: userLocalizer.MustLocalize(&i18n.LocalizeConfig{
 						MessageID: "WorkerInactive",
 						TemplateData: map[string]string{
-							"Worker": removedWorker.worker.worker,
+							"Worker":             removedWorker.worker.worker,
+							"PoolBlockchainName": removedWorker.wallet.blockchain.Name,
 						},
 					}),
 				})
@@ -326,8 +327,7 @@ func (w *Workers) Check(ctx context.Context) {
 	zap.L().Debug("workers check: pool requests prepared", zap.Int("requests_count", requestsCount))
 
 	poolWorkersCh := make(chan PoolWorkers, requestsCount)
-	defer close(poolWorkersCh)
-	newCtx, cancel := context.WithCancel(ctx)
+	newCtx, cancel := w.blockchainsService.WithAPITimeout(ctx)
 	defer cancel()
 
 	for coin, poolRequests := range poolRequestsMap {
@@ -338,7 +338,7 @@ func (w *Workers) Check(ctx context.Context) {
 		}
 	}
 
-	changedWorkersMap := make(map[UserInfo]map[WalletInfo]*UserChangedWorkers)
+	changedWorkersMap := make(map[UserInfo]map[WalletInfo]UserChangedWorkers)
 	defer clear(changedWorkersMap)
 	for i := 0; i < requestsCount; i++ {
 		select {
@@ -352,7 +352,7 @@ func (w *Workers) Check(ctx context.Context) {
 					zap.Error(poolWorkers.err),
 				)
 
-				return
+				continue
 			}
 
 			blockchain, err := w.blockchainsService.GetInfo(poolWorkers.coin)
@@ -363,38 +363,55 @@ func (w *Workers) Check(ctx context.Context) {
 					zap.Error(err),
 				)
 
-				return
+				continue
 			}
 
 			coinWorkersMap, ok := workersMap[poolWorkers.coin]
-			if ok {
-				for wallet, walletWorkers := range poolWorkers.workers {
-					userWalletWorkers, ok := coinWorkersMap[wallet]
-					if ok {
-						walletWorkersSet := set.NewHashSet[*WorkerInfo, string](len(walletWorkers.Workers))
-						for _, mw := range walletWorkers.Workers {
-							walletWorkersSet.Insert(&WorkerInfo{
+			coinRequests, hasRequests := poolRequestsMap[poolWorkers.coin]
+			if ok && hasRequests && poolWorkers.groupNum < len(coinRequests.wallets) {
+				// Iterate the wallets WE requested in this group, not the
+				// keys returned by the pool. If a wallet has zero active
+				// workers, the pool may omit it from the response entirely
+				// — we still need to compute the diff (and emit "removed"
+				// notifications) for those.
+				for _, wallet := range coinRequests.wallets[poolWorkers.groupNum] {
+					userWalletWorkersSlice, ok := coinWorkersMap[wallet]
+					if !ok {
+						continue
+					}
+
+					// Build the pool's snapshot of this wallet's workers
+					// (empty set if the pool didn't include it). Reuse
+					// across all users that track this wallet.
+					var walletWorkersSet *set.HashSet[WorkerInfo, string]
+					if poolWalletWorkers, ok := poolWorkers.workers[wallet]; ok {
+						walletWorkersSet = set.NewHashSet[WorkerInfo, string](len(poolWalletWorkers.Workers))
+						for _, mw := range poolWalletWorkers.Workers {
+							walletWorkersSet.Insert(WorkerInfo{
 								worker:      mw.Worker,
-								region:      mw.Region,
 								solo:        mw.Solo,
 								connectedAt: mw.ConnectedAt.AsTime(),
 							})
 						}
+					} else {
+						walletWorkersSet = set.NewHashSet[WorkerInfo, string](0)
+					}
 
+					for _, userWalletWorkers := range userWalletWorkersSlice {
 						walletInfo := WalletInfo{
 							id:         userWalletWorkers.id,
 							wallet:     wallet,
 							blockchain: &blockchain,
 						}
-						userChangedWorkers := &UserChangedWorkers{
+						userChangedWorkers := UserChangedWorkers{
 							added:   walletWorkersSet.Difference(userWalletWorkers.workers).Slice(),
 							removed: userWalletWorkers.workers.Difference(walletWorkersSet).Slice(),
 						}
 
-						changedUserWorkersMap, ok := changedWorkersMap[*userWalletWorkers.userInfo]
+						changedUserWorkersMap, ok := changedWorkersMap[userWalletWorkers.userInfo]
 						if !ok {
-							changedUserWorkersMap = make(map[WalletInfo]*UserChangedWorkers)
-							changedWorkersMap[*userWalletWorkers.userInfo] = changedUserWorkersMap
+							changedUserWorkersMap = make(map[WalletInfo]UserChangedWorkers)
+							changedWorkersMap[userWalletWorkers.userInfo] = changedUserWorkersMap
 						}
 						changedUserWorkersMap[walletInfo] = userChangedWorkers
 					}
@@ -439,7 +456,7 @@ func (w *Workers) Check(ctx context.Context) {
 		return
 	}
 
-	changedWorkersGroups := []*ChangedWorkersDB{{
+	changedWorkersGroups := []ChangedWorkersDB{{
 		added:   []WorkerDB{},
 		removed: []RemovalWorkerDB{},
 	}}
@@ -451,7 +468,7 @@ func (w *Workers) Check(ctx context.Context) {
 	for _, changedUserWorkersMap := range changedWorkersMap {
 		if len(changedWorkersGroups[groupNum].added)+len(changedWorkersGroups[groupNum].removed) >= w.config.MaxUsersDBChangesLimit {
 			groupNum++
-			changedWorkersGroups = append(changedWorkersGroups, &ChangedWorkersDB{
+			changedWorkersGroups = append(changedWorkersGroups, ChangedWorkersDB{
 				added:   []WorkerDB{},
 				removed: []RemovalWorkerDB{},
 			})
@@ -464,7 +481,6 @@ func (w *Workers) Check(ctx context.Context) {
 						WalletID: walletInfo.id,
 						Worker:   workerInfo.worker,
 					},
-					Region:      workerInfo.region,
 					Solo:        workerInfo.solo,
 					ConnectedAt: workerInfo.connectedAt,
 				})
@@ -485,11 +501,10 @@ func (w *Workers) Check(ctx context.Context) {
 			batch.Queue(`INSERT INTO wallet_workers (
 				wallet_id,
 				worker,
-				region,
 				solo,
 				connected_at
-			) VALUES ($1, $2, $3, $4, $5)`,
-				worker.WalletID, worker.Worker, worker.Region, worker.Solo, worker.ConnectedAt,
+			) VALUES ($1, $2, $3, $4)`,
+				worker.WalletID, worker.Worker, worker.Solo, worker.ConnectedAt,
 			)
 		}
 
@@ -545,7 +560,7 @@ func (w *Workers) Check(ctx context.Context) {
 		return
 	}
 
-	changedUsersWorkersGroups := [][]*ChangedUserWorkers{{}}
+	changedUsersWorkersGroups := [][]ChangedUserWorkers{{}}
 	defer func() {
 		changedUsersWorkersGroups = nil
 	}()
@@ -554,31 +569,31 @@ func (w *Workers) Check(ctx context.Context) {
 	for userInfo, changedUserWorkersMap := range changedWorkersMap {
 		if len(changedUsersWorkersGroups[groupNum]) >= w.config.ParallelNotificationsCount {
 			groupNum++
-			changedUsersWorkersGroups = append(changedUsersWorkersGroups, []*ChangedUserWorkers{})
+			changedUsersWorkersGroups = append(changedUsersWorkersGroups, []ChangedUserWorkers{})
 		}
 
 		for walletInfo, userChangedWorkers := range changedUserWorkersMap {
-			changedUserWorkers := &ChangedUserWorkers{
-				userInfo: &userInfo,
+			perUser := ChangedUserWorkers{
+				userInfo: userInfo,
 				added:    make([]ChangedUserWorker, 0, len(userChangedWorkers.added)),
 				removed:  make([]ChangedUserWorker, 0, len(userChangedWorkers.removed)),
 			}
 
 			for _, workerInfo := range userChangedWorkers.added {
-				changedUserWorkers.added = append(changedUserWorkers.added, ChangedUserWorker{
-					wallet: &walletInfo,
+				perUser.added = append(perUser.added, ChangedUserWorker{
+					wallet: walletInfo,
 					worker: workerInfo,
 				})
 			}
 
 			for _, workerInfo := range userChangedWorkers.removed {
-				changedUserWorkers.removed = append(changedUserWorkers.removed, ChangedUserWorker{
-					wallet: &walletInfo,
+				perUser.removed = append(perUser.removed, ChangedUserWorker{
+					wallet: walletInfo,
 					worker: workerInfo,
 				})
 			}
 
-			changedUsersWorkersGroups[groupNum] = append(changedUsersWorkersGroups[groupNum], changedUserWorkers)
+			changedUsersWorkersGroups[groupNum] = append(changedUsersWorkersGroups[groupNum], perUser)
 		}
 	}
 

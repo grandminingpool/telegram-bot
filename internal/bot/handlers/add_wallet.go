@@ -32,7 +32,9 @@ func (h *AddWalletHandler) ValidateAndAdd(ctx context.Context, userID int64, coi
 	}
 
 	client := pool_miners_proto.NewPoolMinersServiceClient(conn)
-	response, err := client.ValidateAddress(ctx, &pool_miners_proto.MinerAddressRequest{
+	apiCtx, cancel := h.blockchainsService.WithAPITimeout(ctx)
+	defer cancel()
+	response, err := client.ValidateAddress(apiCtx, &pool_miners_proto.MinerAddressRequest{
 		Address: wallet,
 	})
 	if err != nil {

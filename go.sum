@@ -52,6 +52,8 @@ github.com/grandminingpool/pool-api-proto v1.1.7 h1:YLLqjeaplXE1zwgClNfa8IvDVj7G
 github.com/grandminingpool/pool-api-proto v1.1.7/go.mod h1:rHm06j+VfE9BIGJ8QoTL776vgCADS6NSvYwC9ZFWZfo=
 github.com/grandminingpool/pool-api-proto v1.1.8 h1:8CHYn1KyH3zztluTJYK0AS2N3VWgJQaz84n+rmoWZ9g=
 github.com/grandminingpool/pool-api-proto v1.1.8/go.mod h1:rHm06j+VfE9BIGJ8QoTL776vgCADS6NSvYwC9ZFWZfo=
+github.com/grandminingpool/pool-api-proto v1.1.9 h1:O2dlz6OkMy3/x3S4ToStTWPtbXzPSagf3juMXD7O3vQ=
+github.com/grandminingpool/pool-api-proto v1.1.9/go.mod h1:rHm06j+VfE9BIGJ8QoTL776vgCADS6NSvYwC9ZFWZfo=
 github.com/hashicorp/go-set/v2 v2.1.0 h1:iERPCQWks+I+4bTgy0CT2myZsCqNgBg79ZHqwniohXo=
 github.com/hashicorp/go-set/v2 v2.1.0/go.mod h1:6q4nh8UCVZODn2tJ5RbJi8+ki7pjZBsAEYGt6yaGeTo=
 github.com/hashicorp/hcl v1.0.0 h1:0Anlzjpi4vEasTeNFn2mLJgTSwt0+6sfsiTG8qcWGx4=

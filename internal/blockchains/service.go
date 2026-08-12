@@ -3,6 +3,7 @@ package blockchains
 import (
 	"context"
 	"fmt"
+	"time"
 
 	pool_api_client "github.com/grandminingpool/telegram-bot/internal/clients/pool_api"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -39,6 +40,16 @@ type Blockchain struct {
 type Service struct {
 	pgConn      *pgxpool.Pool
 	blockchains map[string]Blockchain
+	apiTimeout  time.Duration
+}
+
+// WithAPITimeout returns a child of ctx whose deadline is now + the
+// configured pool API timeout. All gRPC calls to the pool API should pass
+// this context so a single hung pool can't block a goroutine indefinitely.
+//
+// The caller must invoke the returned CancelFunc when the call completes.
+func (s *Service) WithAPITimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, s.apiTimeout)
 }
 
 func (s *Service) getBlockchainsFromDB(ctx context.Context) ([]BlockchainDB, error) {
@@ -125,9 +136,10 @@ func (s *Service) Close() {
 	clear(s.blockchains)
 }
 
-func NewService(pgConn *pgxpool.Pool) *Service {
+func NewService(pgConn *pgxpool.Pool, apiTimeout time.Duration) *Service {
 	return &Service{
 		pgConn:      pgConn,
 		blockchains: make(map[string]Blockchain),
+		apiTimeout:  apiTimeout,
 	}
 }

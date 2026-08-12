@@ -68,6 +68,7 @@ func (m *UserMiddleware) Middleware(next bot.HandlerFunc) bot.HandlerFunc {
 
 			userCtx := &User{
 				ID:        user.ID,
+				ChatID:    user.ChatID,
 				Lang:      user.Lang,
 				Localizer: userLocalizer,
 				Settings: UserSettings{

@@ -11,8 +11,10 @@ const defaultHashrateUnit = "H/s"
 var (
 	hashratePrefixes = []string{"k", "M", "G", "T", "P", "E"}
 	hashrateUnits    = map[string]string{
-		"zcash": "Sol/s",
+		"zcash":        "Sol/s",
+		"mimblewimble": "Gps",
 	}
+	hashrateStep = big.NewFloat(1000)
 )
 
 func HashrateUnit(coin string) string {
@@ -36,17 +38,17 @@ func Hashrate(hashrate *big.Int, coin string) string {
 		return fmt.Sprintf("0.00 %s", unit)
 	}
 
-	step := big.NewFloat(1000)
 	h := new(big.Float).SetInt(hashrate)
+	prefix := ""
 
-	for _, prefix := range hashratePrefixes {
-		h.Quo(h, step)
-		if h.Cmp(step) < 0 {
-			hf, _ := h.Float64()
-			return fmt.Sprintf("%.2f %s%s", hf, prefix, unit)
+	for _, p := range hashratePrefixes {
+		if h.Cmp(hashrateStep) < 0 {
+			break
 		}
+		h.Quo(h, hashrateStep)
+		prefix = p
 	}
 
 	hf, _ := h.Float64()
-	return fmt.Sprintf("%.2f %s%s", hf, hashratePrefixes[len(hashratePrefixes)-1], unit)
+	return fmt.Sprintf("%.2f %s%s", hf, prefix, unit)
 }

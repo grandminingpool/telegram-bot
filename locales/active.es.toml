@@ -80,9 +80,9 @@ WalletBalance = "Balance: <b>{{.Balance}} {{.Ticker}}</b>"
 
 WalletLeftForPayment = "Restante para el pago: {{.Balance}} / {{.MinPayout}} {{.Ticker}}"
 
-WorkerInfoShort = "Región: <b>{{.Region}}</b>\nSolo: <b>{{.Solo}}</b>\nConectado: <b>{{.ConnectedAt}}</b>"
+WorkerInfoShort = "Solo: <b>{{.Solo}}</b>\nConectado: <b>{{.ConnectedAt}}</b>"
 
-WorkerInfo = "Worker: <b>{{.Worker}}</b>\nRegión: <b>{{.Region}}</b>\nSolo: <b>{{.Solo}}</b>\nHashrate: <b>{{.Hashrate}}</b>\nTiempo activo: <b>{{.Uptime}}</b>"
+WorkerInfo = "Worker: <b>{{.Worker}}</b>\nSolo: <b>{{.Solo}}</b>\nHashrate: <b>{{.Hashrate}}</b>\nTiempo activo: <b>{{.Uptime}}</b>"
 
 PoolStatsMainInfo = "Pool: <b>{{.PoolBlockchainName}}</b>\nAlgoritmos: <b>{{.Algos}}</b>\nModo de pago: <b>{{.PayoutMode}}</b>\nSoporte de minería solo: <b>{{.Solo}}</b>"
 
@@ -98,9 +98,9 @@ PoolStatsMiningInfo = "Cantidad de mineros: <b>{{.MinersCount}}</b>\nHashrate ac
 
 UserFeedbackSent = "¡Gracias por tu comentario!\nHe enviado tu mensaje a los desarrolladores. Lo revisarán 🙏🏻\n\n¿Necesitas ayuda humana? Únete a nuestro chat: {{.PoolChatLink}}"
 
-WorkerActive = "✨ ¡Worker <b>{{.Worker}}</b> está activo de nuevo!"
+WorkerActive = "✨ ¡Worker <b>{{.Worker}}</b> en <b>{{.PoolBlockchainName}}</b> está activo de nuevo!"
 
-WorkerInactive = "❗️ Worker <b>{{.Worker}}</b> no está activo"
+WorkerInactive = "❗️ Worker <b>{{.Worker}}</b> en <b>{{.PoolBlockchainName}}</b> no está activo"
 
 NewPayoutReceived = "💰 ¡Nuevo pago recibido!"
 
@@ -109,6 +109,10 @@ PayoutInfo = "Monto: <b>{{.Amount}} {{.Ticker}}</b>\nTx hash: <b>{{.TxHash}}</b>
 NewBlockFound = "🤑 ¡Nuevo bloque encontrado!"
 
 SoloPayoutInfo = "Recompensa: <b>{{.Reward}} {{.Ticker}}</b>\nHash del bloque: <b>{{.BlockHash}}</b>\nTx hash: <b>{{.TxHash}}</b>\nPagado: <b>{{.PaidAt}}</b>\nMinado: <b>{{.MinedAt}}</b>"
+
+NewImmatureBlockFound = "🎉 ¡Nuevo bloque minado! Esperando confirmación..."
+
+ImmatureBlockDetails = "Recompensa: <b>{{.Reward}} {{.Ticker}}</b>\nHash del bloque: <b>{{.BlockHash}}</b>\nMinado: <b>{{.MinedAt}}</b>"
 
 CommandStartDescription = "🚀 Iniciar el bot"
 

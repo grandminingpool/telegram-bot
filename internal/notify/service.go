@@ -10,6 +10,7 @@ import (
 	bot_config "github.com/grandminingpool/telegram-bot/configs/bot"
 	"github.com/grandminingpool/telegram-bot/internal/blockchains"
 	"github.com/grandminingpool/telegram-bot/internal/common/languages"
+	"github.com/grandminingpool/telegram-bot/internal/utils/cron"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -42,19 +43,37 @@ func (s *Service) Start(ctx context.Context) error {
 	serviceCtx, cancel := context.WithCancel(ctx)
 	s.ctxCancel = cancel
 
+	workersCron, err := cron.FromMinutes(s.config.CheckIntervals.Workers)
+	if err != nil {
+		cancel()
+
+		return fmt.Errorf("invalid workers check interval: %w", err)
+	}
+
+	payoutsCron, err := cron.FromMinutes(s.config.CheckIntervals.Payouts)
+	if err != nil {
+		cancel()
+
+		return fmt.Errorf("invalid payouts check interval: %w", err)
+	}
+
 	plannedJobs := []PlannedJob{
 		{
-			definition: gocron.DurationJob(s.config.CheckIntervals.WorkersDuration()),
+			definition: gocron.CronJob(workersCron, false),
 			task:       gocron.NewTask(s.workers.Check, serviceCtx),
 		},
 		{
-			definition: gocron.DurationJob(s.config.CheckIntervals.PayoutsDuration()),
+			definition: gocron.CronJob(payoutsCron, false),
 			task:       gocron.NewTask(s.payouts.Check, serviceCtx),
 		},
 	}
 
 	for _, pj := range plannedJobs {
-		job, err := scd.NewJob(pj.definition, pj.task)
+		job, err := scd.NewJob(
+			pj.definition,
+			pj.task,
+			gocron.WithSingletonMode(gocron.LimitModeReschedule),
+		)
 		if err != nil {
 			scd.Shutdown()
 

@@ -59,7 +59,10 @@ func (h *PoolStatsHandler) OnBlockchainSelected(
 	}
 
 	client := pool_proto.NewPoolServiceClient(conn)
-	poolInfo, err := client.GetPoolInfo(ctx, &emptypb.Empty{})
+	apiCtx, cancel := h.blockchainsService.WithAPITimeout(ctx)
+	defer cancel()
+
+	poolInfo, err := client.GetPoolInfo(apiCtx, &emptypb.Empty{})
 	if err != nil {
 		zap.L().Error("get blockchain pool info error",
 			zap.Int64("user_id", user.ID),
@@ -70,7 +73,7 @@ func (h *PoolStatsHandler) OnBlockchainSelected(
 		return
 	}
 
-	poolStats, err := client.GetPoolStats(ctx, &pool_proto.GetPoolAssetRequest{Solo: false})
+	poolStats, err := client.GetPoolStats(apiCtx, &pool_proto.GetPoolAssetRequest{Solo: false})
 	if err != nil {
 		zap.L().Error("get blockchain pool stats error",
 			zap.Int64("user_id", user.ID),
@@ -124,7 +127,7 @@ func (h *PoolStatsHandler) OnBlockchainSelected(
 	}))
 
 	if poolInfo.Solo {
-		soloPoolStats, err := client.GetPoolStats(ctx, &pool_proto.GetPoolAssetRequest{Solo: true})
+		soloPoolStats, err := client.GetPoolStats(apiCtx, &pool_proto.GetPoolAssetRequest{Solo: true})
 		if err != nil {
 			zap.L().Warn("get blockchain solo pool stats error",
 				zap.Int64("user_id", user.ID),

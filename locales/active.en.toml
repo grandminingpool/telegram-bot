@@ -80,9 +80,9 @@ WalletBalance = "Balance: <b>{{.Balance}} {{.Ticker}}</b>"
 
 WalletLeftForPayment = "Remaining until payout: {{.Balance}} / {{.MinPayout}} {{.Ticker}}"
 
-WorkerInfoShort = "Region: <b>{{.Region}}</b>\nSolo: <b>{{.Solo}}</b>\nConnected at: <b>{{.ConnectedAt}}</b>"
+WorkerInfoShort = "Solo: <b>{{.Solo}}</b>\nConnected at: <b>{{.ConnectedAt}}</b>"
 
-WorkerInfo = "Worker: <b>{{.Worker}}</b>\nRegion: <b>{{.Region}}</b>\nSolo: <b>{{.Solo}}</b>\nHashrate: <b>{{.Hashrate}}</b>\nUptime: <b>{{.Uptime}}</b>"
+WorkerInfo = "Worker: <b>{{.Worker}}</b>\nSolo: <b>{{.Solo}}</b>\nHashrate: <b>{{.Hashrate}}</b>\nUptime: <b>{{.Uptime}}</b>"
 
 PoolStatsMainInfo = "Pool: <b>{{.PoolBlockchainName}}</b>\nAlgos: <b>{{.Algos}}</b>\nPayout mode: <b>{{.PayoutMode}}</b>\nSupport solo mining: <b>{{.Solo}}</b>"
 
@@ -98,9 +98,9 @@ PoolStatsMiningInfo = "Miners count: <b>{{.MinersCount}}</b>\nCurrent hashrate: 
 
 UserFeedbackSent = "Thank you for your feedback!\nI've sent your message to developers. They'll look into it 🙏🏻\n\nNeed real human help? Feel free to join our chat: {{.PoolChatLink}}"
 
-WorkerActive = "✨ Worker <b>{{.Worker}}</b> is active again!"
+WorkerActive = "✨ Worker <b>{{.Worker}}</b> on <b>{{.PoolBlockchainName}}</b> is active again!"
 
-WorkerInactive = "❗️ Worker <b>{{.Worker}}</b> is not active"
+WorkerInactive = "❗️ Worker <b>{{.Worker}}</b> on <b>{{.PoolBlockchainName}}</b> is not active"
 
 NewPayoutReceived = "💰 New payout received!"
 
@@ -109,6 +109,10 @@ PayoutInfo = "Amount: <b>{{.Amount}} {{.Ticker}}</b>\nTx hash: <b>{{.TxHash}}</b
 NewBlockFound = "🤑 New block found!"
 
 SoloPayoutInfo = "Reward: <b>{{.Reward}} {{.Ticker}}</b>\nBlock hash: <b>{{.BlockHash}}</b>\nTx hash: <b>{{.TxHash}}</b>\nPaid at: <b>{{.PaidAt}}</b>\nMined at: <b>{{.MinedAt}}</b>"
+
+NewImmatureBlockFound = "🎉 New block mined! Awaiting confirmation..."
+
+ImmatureBlockDetails = "Reward: <b>{{.Reward}} {{.Ticker}}</b>\nBlock hash: <b>{{.BlockHash}}</b>\nMined at: <b>{{.MinedAt}}</b>"
 
 CommandStartDescription = "🚀 Start the bot"
 

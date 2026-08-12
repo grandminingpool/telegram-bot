@@ -70,8 +70,14 @@ func main() {
 
 	zap.L().Info("successfully connected to postgres database")
 
+	//	Init bot config
+	botConf, err := bot_config.New(flagsConf.ConfigsPath, validate)
+	if err != nil {
+		zap.L().Fatal("failed to load bot config", zap.Error(err))
+	}
+
 	//	Init blockchains service and start
-	blockchainsService := blockchains.NewService(pgConn)
+	blockchainsService := blockchains.NewService(pgConn, botConf.PoolAPITimeout)
 	if err := blockchainsService.Start(ctx, flagsConf.PoolAPICertsPath); err != nil {
 		zap.L().Fatal("failed to start blockchains service", zap.Error(err))
 	}
@@ -80,11 +86,6 @@ func main() {
 	userService := services.NewUserService(pgConn)
 	userActionService := services.NewUserActionService(pgConn)
 	userWalletService := services.NewUserWalletService(pgConn, blockchainsService)
-	//	Init bot config
-	botConf, err := bot_config.New(flagsConf.ConfigsPath, validate)
-	if err != nil {
-		zap.L().Fatal("failed to load bot config", zap.Error(err))
-	}
 
 	//	Create bot
 	defaultHandler := handlers.NewDefaultHandler(languages, userActionService)

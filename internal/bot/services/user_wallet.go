@@ -54,7 +54,6 @@ type UserPoolWorker struct {
 	Pool        *PoolInfo
 	Wallet      string
 	Worker      string
-	Region      string
 	Solo        bool
 	Hashrate    *big.Int
 	ConnectedAt time.Time
@@ -97,10 +96,8 @@ func (w *UserWalletService) getPoolsInfoMap(ctx context.Context, coins []string)
 	poolsInfoMap := make(map[string]PoolInfo)
 	resultCh := make(chan PoolInfo, len(coins))
 	errCh := make(chan error, len(coins))
-	newCtx, cancel := context.WithCancel(ctx)
+	newCtx, cancel := w.blockchainsService.WithAPITimeout(ctx)
 	defer cancel()
-	defer close(resultCh)
-	defer close(errCh)
 
 	for _, coin := range coins {
 		blockchain, err := w.blockchainsService.GetInfo(coin)
@@ -116,20 +113,15 @@ func (w *UserWalletService) getPoolsInfoMap(ctx context.Context, coins []string)
 		client := pool_proto.NewPoolServiceClient(conn)
 
 		go func(c context.Context, b *blockchains.BlockchainInfo, cl pool_proto.PoolServiceClient) {
-			select {
-			case <-c.Done():
+			poolInfo, err := cl.GetPoolInfo(c, &emptypb.Empty{})
+			if err != nil {
+				errCh <- fmt.Errorf("failed to get blockchain (coin: %s) pool info: %w", b.Coin, err)
 				return
-			default:
-				poolInfo, err := cl.GetPoolInfo(ctx, &emptypb.Empty{})
-				if err != nil {
-					errCh <- fmt.Errorf("failed to get blockchain (coin: %s) pool info: %w", b.Coin, err)
-				} else {
-					resultCh <- PoolInfo{
-						Blockchain: b,
-						Host:       poolInfo.Host,
-						MinPayout:  &poolInfo.PayoutsInfo.MinPayout,
-					}
-				}
+			}
+			resultCh <- PoolInfo{
+				Blockchain: b,
+				Host:       poolInfo.Host,
+				MinPayout:  &poolInfo.PayoutsInfo.MinPayout,
 			}
 		}(newCtx, &blockchain, client)
 	}
@@ -165,21 +157,17 @@ func (w *UserWalletService) getWalletsMap(ctx context.Context, userID int64) (ma
 			return nil, fmt.Errorf("failed to scan user (id: %d) wallets columns: %w", userID, err)
 		}
 
-		coins = append(coins, coin)
 		walletItem := UserWalletInfo{
 			ID:      id,
 			Wallet:  wallet,
 			AddedAt: addedAt,
 		}
-		wallets, ok := walletsMap[coin]
-		if ok {
-			wallets.Wallets = append(wallets.Wallets, walletItem)
-		} else {
-			walletsMap[coin] = UserPoolWallets{
-				Pool:    nil,
-				Wallets: []UserWalletInfo{walletItem},
-			}
+		entry, exists := walletsMap[coin]
+		if !exists {
+			coins = append(coins, coin)
 		}
+		entry.Wallets = append(entry.Wallets, walletItem)
+		walletsMap[coin] = entry
 	}
 
 	if len(coins) > 0 {
@@ -213,10 +201,8 @@ func (w *UserWalletService) FindWallets(ctx context.Context, userID int64) ([]Us
 
 	resultCh := make(chan UserPoolBalances, len(walletsMap))
 	errCh := make(chan error, len(walletsMap))
-	newCtx, cancel := context.WithCancel(ctx)
+	newCtx, cancel := w.blockchainsService.WithAPITimeout(ctx)
 	defer cancel()
-	defer close(resultCh)
-	defer close(errCh)
 
 	for coin, userWallets := range walletsMap {
 		conn, err := w.blockchainsService.GetConnection(coin)
@@ -231,21 +217,16 @@ func (w *UserWalletService) FindWallets(ctx context.Context, userID int64) ([]Us
 		}
 
 		go func(c context.Context, cn string, adds []string, cl pool_payouts_proto.PoolPayoutsServiceClient) {
-			select {
-			case <-c.Done():
+			balances, err := cl.GetMinersBalancesFromList(c, &pool_miners_proto.MinerAddressesRequest{
+				Addresses: adds,
+			})
+			if err != nil {
+				errCh <- fmt.Errorf("failed to get user (id: %d) blockchain (coin: %s) wallets balances: %w", userID, cn, err)
 				return
-			default:
-				balances, err := client.GetMinersBalancesFromList(ctx, &pool_miners_proto.MinerAddressesRequest{
-					Addresses: adds,
-				})
-				if err != nil {
-					errCh <- fmt.Errorf("failed to get user (id: %d) blockchain (coin: %s) wallets balances: %w", userID, cn, err)
-				} else {
-					resultCh <- UserPoolBalances{
-						Coin:     cn,
-						Balances: balances.Balances,
-					}
-				}
+			}
+			resultCh <- UserPoolBalances{
+				Coin:     cn,
+				Balances: balances.Balances,
 			}
 		}(newCtx, coin, addresses, client)
 	}
@@ -293,10 +274,8 @@ func (w *UserWalletService) FindWorkers(ctx context.Context, userID int64) ([]Us
 
 	resultCh := make(chan UserPoolWorkers, len(walletsMap))
 	errCh := make(chan error, len(walletsMap))
-	newCtx, cancel := context.WithCancel(ctx)
+	newCtx, cancel := w.blockchainsService.WithAPITimeout(ctx)
 	defer cancel()
-	defer close(resultCh)
-	defer close(errCh)
 
 	for coin, userWallets := range walletsMap {
 		conn, err := w.blockchainsService.GetConnection(coin)
@@ -311,21 +290,16 @@ func (w *UserWalletService) FindWorkers(ctx context.Context, userID int64) ([]Us
 		}
 
 		go func(c context.Context, cn string, adds []string, cl pool_miners_proto.PoolMinersServiceClient) {
-			select {
-			case <-c.Done():
+			workers, err := cl.GetMinersWorkersFromList(c, &pool_miners_proto.MinerAddressesRequest{
+				Addresses: adds,
+			})
+			if err != nil {
+				errCh <- fmt.Errorf("failed to get user (id: %d) blockchain (coin: %s) wallets workers: %w", userID, cn, err)
 				return
-			default:
-				workers, err := client.GetMinersWorkersFromList(ctx, &pool_miners_proto.MinerAddressesRequest{
-					Addresses: adds,
-				})
-				if err != nil {
-					errCh <- fmt.Errorf("failed to get user (id: %d) blockchain (coin: %s) wallets workers: %w", userID, cn, err)
-				} else {
-					resultCh <- UserPoolWorkers{
-						Coin:    cn,
-						Workers: workers.Workers,
-					}
-				}
+			}
+			resultCh <- UserPoolWorkers{
+				Coin:    cn,
+				Workers: workers.Workers,
 			}
 		}(newCtx, coin, addresses, client)
 	}
@@ -346,7 +320,6 @@ func (w *UserWalletService) FindWorkers(ctx context.Context, userID int64) ([]Us
 								Pool:        userWallets.Pool,
 								Wallet:      wi.Wallet,
 								Worker:      wk.Worker,
-								Region:      wk.Region,
 								Solo:        wk.Solo,
 								Hashrate:    new(big.Int).SetBytes(wk.Hashrate),
 								ConnectedAt: wk.ConnectedAt.AsTime(),

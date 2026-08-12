@@ -181,7 +181,6 @@ func (k *StartKeyboard) ShowWorkers(ctx context.Context, user *middlewares.User,
 			msgBuf.WriteString(user.Localizer.MustLocalize(&i18n.LocalizeConfig{
 				MessageID: "WorkerInfo",
 				TemplateData: map[string]string{
-					"Region":   worker.Region,
 					"Worker":   worker.Worker,
 					"Solo":     format_utils.BoolText(worker.Solo, user.Localizer),
 					"Hashrate": format_utils.Hashrate(worker.Hashrate, worker.Pool.Blockchain.Coin),

@@ -1,0 +1,2 @@
+ALTER TABLE wallet_workers ADD COLUMN region VARCHAR(32) NOT NULL DEFAULT '';
+ALTER TABLE wallet_workers ALTER COLUMN region DROP DEFAULT;

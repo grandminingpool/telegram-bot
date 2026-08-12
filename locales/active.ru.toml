@@ -80,9 +80,9 @@ WalletBalance = "Баланс: <b>{{.Balance}} {{.Ticker}}</b>"
 
 WalletLeftForPayment = "До выплаты: {{.Balance}} / {{.MinPayout}} {{.Ticker}}"
 
-WorkerInfoShort = "Регион: <b>{{.Region}}</b>\nСоло: <b>{{.Solo}}</b>\nПодключён: <b>{{.ConnectedAt}}</b>"
+WorkerInfoShort = "Соло: <b>{{.Solo}}</b>\nПодключён: <b>{{.ConnectedAt}}</b>"
 
-WorkerInfo = "Воркер: <b>{{.Worker}}</b>\nРегион: <b>{{.Region}}</b>\nСоло: <b>{{.Solo}}</b>\nХешрейт: <b>{{.Hashrate}}</b>\nАптайм: <b>{{.Uptime}}</b>"
+WorkerInfo = "Воркер: <b>{{.Worker}}</b>\nСоло: <b>{{.Solo}}</b>\nХешрейт: <b>{{.Hashrate}}</b>\nАптайм: <b>{{.Uptime}}</b>"
 
 PoolStatsMainInfo = "Пул: <b>{{.PoolBlockchainName}}</b>\nАлгоритмы: <b>{{.Algos}}</b>\nРежим выплат: <b>{{.PayoutMode}}</b>\nПоддержка соло: <b>{{.Solo}}</b>"
 
@@ -98,9 +98,9 @@ PoolStatsMiningInfo = "Количество майнеров: <b>{{.MinersCount}
 
 UserFeedbackSent = "Спасибо за ваш отзыв!\nЯ отправил ваше сообщение разработчикам. Они разберутся 🙏🏻\n\nНужна помощь живого человека? Присоединяйтесь к нашему чату: {{.PoolChatLink}}"
 
-WorkerActive = "✨ Воркер <b>{{.Worker}}</b> снова активен!"
+WorkerActive = "✨ Воркер <b>{{.Worker}}</b> на <b>{{.PoolBlockchainName}}</b> снова активен!"
 
-WorkerInactive = "❗️ Воркер <b>{{.Worker}}</b> неактивен"
+WorkerInactive = "❗️ Воркер <b>{{.Worker}}</b> на <b>{{.PoolBlockchainName}}</b> неактивен"
 
 NewPayoutReceived = "💰 Получена новая выплата!"
 
@@ -109,6 +109,10 @@ PayoutInfo = "Сумма: <b>{{.Amount}} {{.Ticker}}</b>\nTx хеш: <b>{{.TxHas
 NewBlockFound = "🤑 Найден новый блок!"
 
 SoloPayoutInfo = "Награда: <b>{{.Reward}} {{.Ticker}}</b>\nХеш блока: <b>{{.BlockHash}}</b>\nTx хеш: <b>{{.TxHash}}</b>\nВыплачено: <b>{{.PaidAt}}</b>\nДобыто: <b>{{.MinedAt}}</b>"
+
+NewImmatureBlockFound = "🎉 Найден новый блок! Ожидаем подтверждения..."
+
+ImmatureBlockDetails = "Награда: <b>{{.Reward}} {{.Ticker}}</b>\nХеш блока: <b>{{.BlockHash}}</b>\nДобыто: <b>{{.MinedAt}}</b>"
 
 CommandStartDescription = "🚀 Запустить бота"
 
